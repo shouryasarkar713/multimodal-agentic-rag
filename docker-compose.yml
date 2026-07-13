@@ -29,6 +29,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - ./backend:/workspace
       - ./data:/data
     env_file:
       - .env
@@ -45,6 +46,9 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/workspace
+      - /workspace/node_modules
     env_file:
       - .env
     environment:

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AppLayout } from "../components/AppLayout";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -16,12 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased bg-[#0f172a] text-[#f1f5f9]`}>
-        <div className="min-h-screen flex">
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
-        </div>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );
