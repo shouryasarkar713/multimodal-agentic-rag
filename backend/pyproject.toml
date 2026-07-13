@@ -1,0 +1,31 @@
+[project]
+name = "research-assistant-backend"
+version = "0.1.0"
+description = "FastAPI backend for Multimodal Technical Research Assistant with Agentic RAG"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.115.0",
+    "uvicorn==0.30.0",
+    "python-multipart==0.0.9",
+    "langgraph==0.4.1",
+    "langchain-core==0.3.50",
+    "langchain-openai==0.3.12",
+    "pymupdf==1.25.3",
+    "pdfplumber==0.11.4",
+    "open_clip_torch==2.26.1",
+    "pgvector==0.7.4",
+    "asyncpg==0.30.0",
+    "sqlalchemy==2.0.35",
+    "sentence-transformers==3.4.1",
+    "pydantic-settings",
+    "alembic",
+    "httpx",
+    "pydantic>=2.0.0",
+    "torch",
+    "torchvision",
+    "pillow"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
