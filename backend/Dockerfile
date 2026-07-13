@@ -15,7 +15,8 @@ WORKDIR /workspace
 # Copy pyproject.toml, parse and install dependencies using standard pip
 COPY pyproject.toml .
 RUN python -c "import tomllib; data = tomllib.load(open('pyproject.toml', 'rb')); print('\n'.join(data['project']['dependencies']))" > requirements.txt \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --default-timeout=3000 --retries 10 --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --default-timeout=3000 --retries 10 --no-cache-dir -r requirements.txt
 
 # Copy application source code
 COPY . .
