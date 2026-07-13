@@ -3,13 +3,14 @@ import asyncio
 from typing import AsyncGenerator
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.pool import NullPool
 
 from app.main import app
 from app.dependencies import get_db
 from app.config import settings
 
-# Setup test DB connection (uses the same Docker database, but test transactions are rolled back)
-engine = create_async_engine(settings.database_url, echo=False)
+# Setup test DB connection with NullPool to prevent loop-mismatch errors
+engine = create_async_engine(settings.database_url, poolclass=NullPool, echo=False)
 TestingSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 @pytest.fixture(scope="function")

@@ -1,6 +1,6 @@
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Text, Integer, Float, DateTime, ForeignKey, Index, text
-from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY, TSVECTOR
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 import uuid
 from datetime import datetime
@@ -40,6 +40,7 @@ class Chunk(Base):
     token_count: Mapped[int | None] = mapped_column(Integer)
     text_embedding = mapped_column(Vector(1536))
     image_embedding = mapped_column(Vector(512))
+    search_vector = mapped_column(TSVECTOR)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=text("NOW()"))
     document: Mapped["Document"] = relationship(back_populates="chunks")
 
