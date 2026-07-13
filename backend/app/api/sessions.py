@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.dependencies import get_db, verify_api_key
 from app.models.db import Session, Message
@@ -16,8 +16,8 @@ from app.schemas.sessions import (
     CitationItem
 )
 
-# Prefix configured as /chat/sessions to match /api/chat/sessions contract
-router = APIRouter(prefix="/chat/sessions", tags=["sessions"], dependencies=[Depends(verify_api_key)])
+# Prefix configured as /sessions to match /api/sessions contract
+router = APIRouter(prefix="/sessions", tags=["sessions"], dependencies=[Depends(verify_api_key)])
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
@@ -37,25 +37,32 @@ async def create_session(
     return SessionResponse(
         id=new_session.id,
         title=new_session.title,
+        message_count=0,
         created_at=new_session.created_at,
         updated_at=new_session.updated_at
     )
 
 @router.get("", response_model=SessionListResponse)
 async def list_sessions(db: AsyncSession = Depends(get_db)):
-    """List all chat sessions ordered by updated_at descending."""
-    stmt = select(Session).order_by(Session.updated_at.desc())
+    """List all chat sessions ordered by updated_at descending with message counts."""
+    stmt = (
+        select(Session, func.count(Message.id))
+        .outerjoin(Message, Session.id == Message.session_id)
+        .group_by(Session.id)
+        .order_by(Session.updated_at.desc())
+    )
     result = await db.execute(stmt)
-    sessions = result.scalars().all()
+    sessions_with_counts = result.all()
     
     return SessionListResponse(
         sessions=[
             SessionResponse(
                 id=s.id,
                 title=s.title,
+                message_count=count,
                 created_at=s.created_at,
                 updated_at=s.updated_at
-            ) for s in sessions
+            ) for s, count in sessions_with_counts
         ]
     )
 

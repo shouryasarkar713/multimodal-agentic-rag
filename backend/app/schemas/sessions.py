@@ -9,6 +9,7 @@ class SessionCreate(BaseModel):
 class SessionResponse(BaseModel):
     id: uuid.UUID
     title: str
+    message_count: Optional[int] = 0
     created_at: datetime
     updated_at: datetime
 

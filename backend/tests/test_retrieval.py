@@ -23,20 +23,16 @@ async def test_retrieve_endpoint(
 ):
     """Test hybrid search, multimodal CLIP matching, and re-ranking on the retrieve endpoint."""
     # 1. Setup Mocks
-    # Mock OpenAI Embeddings
     mock_embeddings_inst = MagicMock()
     mock_embeddings_inst.aembed_query = AsyncMock(return_value=[0.1] * 1536)
     mock_openai_embeddings_class.return_value = mock_embeddings_inst
     
-    # Mock CLIP Model
     mock_clip_model = MagicMock()
     mock_clip_features = torch.ones((1, 512))
     mock_clip_model.encode_text.return_value = mock_clip_features
     mock_get_clip_model.return_value = (mock_clip_model, MagicMock())
     
-    # Mock CrossEncoder
     mock_ce = MagicMock()
-    # Mock scores for 3 candidates
     mock_ce.predict.return_value = [0.95, 0.45, 0.85]
     mock_get_cross_encoder.return_value = mock_ce
     
@@ -53,7 +49,6 @@ async def test_retrieve_endpoint(
     )
     db_session.add(doc)
     
-    # Text chunk
     chunk_text = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -64,7 +59,6 @@ async def test_retrieve_endpoint(
         section_title="Abstract",
         text_embedding=[0.1] * 1536
     )
-    # Table chunk
     chunk_table = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -76,7 +70,6 @@ async def test_retrieve_endpoint(
         section_title="Results",
         text_embedding=[0.1] * 1536
     )
-    # Image chunk
     chunk_image = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -113,9 +106,6 @@ async def test_retrieve_endpoint(
     assert "chunks" in res_data
     chunks = res_data["chunks"]
     
-    # Assert we got the chunks and they were re-ranked based on CrossEncoder mock scores
-    # Scores returned: text=0.95, table=0.45, image=0.85
-    # Sorted order should be: text (0.95), image (0.85), table (0.45)
     assert len(chunks) == 3
     assert chunks[0]["content_type"] == "text"
     assert chunks[1]["content_type"] == "image"
@@ -129,7 +119,7 @@ async def test_session_lifecycle(client: AsyncClient, db_session: AsyncSession):
     
     # 1. Create session
     response = await client.post(
-        "/api/chat/sessions",
+        "/api/sessions",
         headers=headers,
         json={"title": "NLP Discussion"}
     )
@@ -139,13 +129,13 @@ async def test_session_lifecycle(client: AsyncClient, db_session: AsyncSession):
     session_id = res_data["id"]
     
     # 2. List sessions
-    response = await client.get("/api/chat/sessions", headers=headers)
+    response = await client.get("/api/sessions", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     list_data = response.json()
     assert len(list_data["sessions"]) >= 1
     assert any(s["id"] == session_id for s in list_data["sessions"])
     
     # 3. Delete session
-    response = await client.delete(f"/api/chat/sessions/{session_id}", headers=headers)
+    response = await client.delete(f"/api/sessions/{session_id}", headers=headers)
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"message": "Session deleted successfully"}
