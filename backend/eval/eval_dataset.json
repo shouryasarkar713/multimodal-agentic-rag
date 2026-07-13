@@ -1,0 +1,154 @@
+{
+  "questions": [
+    {
+      "query": "What is the key advantage of the Transformer over recurrent models?",
+      "ground_truth": "The Transformer allows for significantly more parallelization during training compared to recurrent models because it avoids sequential processing.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What formula is used to calculate Scaled Dot-Product Attention in the Transformer?",
+      "ground_truth": "Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "How many layers are in the encoder and decoder stacks of the Transformer?",
+      "ground_truth": "Both the encoder and decoder stacks consist of N = 6 identical layers.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What is the purpose of scaling the dot product attention by 1/sqrt(d_k)?",
+      "ground_truth": "For large values of d_k, the dot products grow large in magnitude, pushing the softmax function into regions with extremely small gradients. Scaling by 1/sqrt(d_k) prevents this gradient vanishing effect.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What dimensionality is used for the input embeddings, output embeddings, and feed-forward layers in the base Transformer?",
+      "ground_truth": "The model dimensionality d_model is 512, and the inner-layer dimensionality of the feed-forward network d_ff is 2048.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What optimizer and learning rate schedule was used to train the Transformer?",
+      "ground_truth": "The Adam optimizer was used with beta1 = 0.9, beta2 = 0.98, and epsilon = 10^-9. The learning rate was varied according to a warm-up schedule: lr = d_model^-0.5 * min(step_num^-0.5, step_num * warmup_steps^-1.5) with warmup_steps = 4000.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "How is positional encoding defined in the Transformer?",
+      "ground_truth": "Positional encodings are added to the input embeddings using sine and cosine functions of different frequencies: PE(pos, 2i) = sin(pos / 10000^(2i/d_model)) and PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model)).",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What dropout rate was used during training of the Transformer?",
+      "ground_truth": "A dropout rate of P_drop = 0.1 was applied to the output of each sub-layer before it was added to the sub-layer input and normalized, and also to the sums of embeddings and positional encodings.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What baseline datasets were used for the English-to-German and English-to-French translation tasks?",
+      "ground_truth": "WMT 2014 English-to-German dataset containing 4.5 million sentence pairs, and WMT 2014 English-to-French dataset containing 36 million sentence pairs.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What BLEU scores did the base and big Transformer models achieve on English-to-German translation?",
+      "ground_truth": "The base model achieved a BLEU score of 27.3, and the big model achieved a BLEU score of 28.4.",
+      "filename": "1706.03762.pdf"
+    },
+    {
+      "query": "What is the degradation problem in deep neural networks?",
+      "ground_truth": "The degradation problem refers to the phenomenon where, as network depth increases, accuracy saturates and then degrades rapidly, leading to higher training error rather than overfitting.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "How does ResNet address the degradation problem?",
+      "ground_truth": "ResNet addresses the degradation problem by introducing shortcut connections that perform identity mapping, allowing the layers to learn residual mappings (F(x) = H(x) - x) rather than the direct underlying mapping H(x).",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What is the mathematical formulation of a residual building block?",
+      "ground_truth": "y = F(x, {W_i}) + x, where x and y are the input and output vectors, and F is the residual mapping to be learned.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What shortcut connection type is used when input and output dimensions differ in ResNet?",
+      "ground_truth": "ResNet uses linear projection connections (y = F(x) + W_s * x) to match the dimensions, or pads the extra dimensions with zeros.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What are the depths of the five ResNet architectures evaluated on ImageNet?",
+      "ground_truth": "18-layer, 34-layer, 50-layer, 101-layer, and 152-layer architectures.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What is the bottleneck design block used in ResNet-50/101/152?",
+      "ground_truth": "The bottleneck design uses a stack of 3 layers instead of 2: a 1x1 convolution for dimension reduction, a 3x3 convolution, and another 1x1 convolution for dimension restoration, with identity shortcuts.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What dataset was used for ResNet ImageNet classification experiments, and what were its training and validation split sizes?",
+      "ground_truth": "ImageNet 2012 classification dataset, consisting of 1.28 million training images and 50,000 validation images across 1000 classes.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What is the top-5 error rate of ResNet-152 on the ImageNet validation set?",
+      "ground_truth": "ResNet-152 achieved a single-model top-5 validation error rate of 4.49%.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What learning rate and weight decay settings were used during ImageNet training for ResNet?",
+      "ground_truth": "A learning rate of 0.1 (divided by 10 when error plateaued) and weight decay of 0.0001 with momentum of 0.9.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What layer normalization or batch normalization technique was used in ResNet?",
+      "ground_truth": "Batch Normalization (BN) was applied immediately after each convolution and before activation.",
+      "filename": "1512.03385.pdf"
+    },
+    {
+      "query": "What does BERT stand for?",
+      "ground_truth": "Bidirectional Encoder Representations from Transformers.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What are the two pre-training objectives used by BERT?",
+      "ground_truth": "Masked Language Modeling (MLM) and Next Sentence Prediction (NSP).",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "How does the Masked Language Model (MLM) pre-training task work?",
+      "ground_truth": "MLM randomly masks 15% of the input tokens. Of those, 80% are replaced with the [MASK] token, 10% with a random token, and 10% are kept unchanged. The model is trained to predict the original tokens.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What are the dimensions and layer configurations of BERT-Base and BERT-Large?",
+      "ground_truth": "BERT-Base: L=12, H=768, A=12, total parameters=110M. BERT-Large: L=24, H=1024, A=16, total parameters=340M.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What corpora were used to pre-train BERT?",
+      "ground_truth": "BooksCorpus (800M words) and English Wikipedia (2,500M words).",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "How does BERT represent input sequences as embeddings?",
+      "ground_truth": "An input representation is the sum of Token Embeddings (WordPiece), Segment Embeddings (indicating sentence A or B), and Position Embeddings.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What is the function of the [CLS] token in BERT?",
+      "ground_truth": "The [CLS] token is the first token of every sequence, and its final hidden state is used as the aggregate sequence representation for classification tasks.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What optimizer, learning rate, and batch size were used during BERT pre-training?",
+      "ground_truth": "Adam optimizer with learning rate of 1e-4, beta1=0.9, beta2=0.999, L2 weight decay of 0.01, batch size of 256 sequences (each sequence of length 512).",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "What score did BERT-Large achieve on the GLUE benchmark?",
+      "ground_truth": "BERT-Large achieved a GLUE score of 82.1%.",
+      "filename": "1810.04805.pdf"
+    },
+    {
+      "query": "How does BERT differ from OpenAI GPT in terms of attention directionality?",
+      "ground_truth": "BERT uses a bidirectional self-attention mechanism where representations are conditioned on both left and right context in all layers, whereas OpenAI GPT uses a left-to-right Transformer where every token can only attend to previous tokens.",
+      "filename": "1810.04805.pdf"
+    }
+  ]
+}

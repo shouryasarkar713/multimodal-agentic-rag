@@ -32,7 +32,10 @@ class ExtractedFigure:
 def extract_metadata(pdf_path: str) -> Dict[str, Any]:
     """Extract metadata from PDF: title, authors, total_pages."""
     logging.info(f"Extracting metadata from {pdf_path}")
-    doc = fitz.open(pdf_path)
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception:
+        raise ValueError("Could not open PDF. The file may be corrupted or password protected.")
     total_pages = len(doc)
     
     metadata = doc.metadata or {}

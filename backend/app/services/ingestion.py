@@ -31,6 +31,11 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
             # Step 2: Page-by-Page Text Extraction
             pages_content = extract_pages(pdf_path)
             
+            # Check for 0 extractable text (M6 edge-case requirement)
+            total_text_len = sum(len(p.full_text.strip()) for p in pages_content)
+            if total_text_len == 0:
+                raise ValueError("No extractable text found. This may be a scanned PDF.")
+            
             # Step 3: Table Detection and Extraction
             extracted_tables = extract_tables(pdf_path, pages_content)
             

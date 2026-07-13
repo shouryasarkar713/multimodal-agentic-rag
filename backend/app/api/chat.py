@@ -147,8 +147,45 @@ async def chat_endpoint(
     try:
         final_state = await compiled_graph.ainvoke(initial_state, config)
     except Exception as e:
+        import httpx
+        import openai
+        
+        is_timeout = False
+        if isinstance(e, httpx.TimeoutException) or isinstance(e, openai.APITimeoutError):
+            is_timeout = True
+        elif "timeout" in str(e).lower() or "timed out" in str(e).lower():
+            is_timeout = True
+            
+        if is_timeout:
+            logging.error(f"LangGraph run timed out: {e}")
+            await db.rollback()
+            
+            # Record QueryTrace with error step
+            from app.models.db import QueryTrace
+            error_trace = QueryTrace(
+                id=trace_id,
+                session_id=body.session_id,
+                user_query=body.query,
+                classified_intent="error",
+                steps=[{
+                    "step_name": "timeout_error",
+                    "input_summary": body.query,
+                    "output_summary": f"TimeoutException: {str(e)}",
+                    "duration_ms": 30000,
+                    "metadata": {"error": str(e)}
+                }],
+                total_duration_ms=30000,
+                langsmith_url=None
+            )
+            db.add(error_trace)
+            await db.commit()
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="The AI service is slow. Please try again."
+            )
+            
         logging.error(f"LangGraph run failed with error: {e}")
-        # Rollback in case of hanging transactions
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

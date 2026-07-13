@@ -228,3 +228,71 @@ async def get_document_figures(document_id: uuid.UUID, db: AsyncSession = Depend
         ))
         
     return FiguresResponse(figures=figures)
+
+@router.post("/download_arxiv", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def download_arxiv(
+    arxiv_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """Download a PDF from arXiv by ID and start the ingestion pipeline."""
+    import httpx
+    url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+    filename = f"{arxiv_id}.pdf"
+    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(url, headers=headers, follow_redirects=True)
+            if res.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to fetch PDF from arXiv: HTTP {res.status_code}"
+                )
+            contents = res.content
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to fetch PDF from arXiv: {str(e)}"
+        )
+        
+    file_size = len(contents)
+    
+    try:
+        doc_fitz = fitz.open(stream=contents, filetype="pdf")
+        total_pages = len(doc_fitz)
+        doc_fitz.close()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not open downloaded PDF."
+        )
+        
+    document_id = uuid.uuid4()
+    os.makedirs("/data/uploads", exist_ok=True)
+    file_path = f"/data/uploads/{document_id}.pdf"
+    
+    with open(file_path, "wb") as f:
+        f.write(contents)
+        
+    new_doc = Document(
+        id=document_id,
+        filename=filename,
+        total_pages=total_pages,
+        file_path=file_path,
+        file_size_bytes=file_size,
+        status="processing"
+    )
+    
+    db.add(new_doc)
+    await db.commit()
+    
+    background_tasks.add_task(run_ingestion_pipeline, document_id)
+    
+    return UploadResponse(
+        document_id=document_id,
+        filename=filename,
+        status="processing",
+        message=f"ArXiv document {arxiv_id} downloaded and processing started."
+    )

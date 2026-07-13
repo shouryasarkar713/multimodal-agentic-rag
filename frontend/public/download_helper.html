@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ArXiv Downloader Helper</title>
+  <script>
+    async function start() {
+      const ids = ['1706.03762', '1512.03385', '1810.04805'];
+      const statusDiv = document.getElementById('status');
+      statusDiv.innerHTML = '';
+      for (const id of ids) {
+        statusDiv.innerHTML += `Downloading ${id}...<br/>`;
+        try {
+          const res = await fetch(`http://localhost:8000/api/documents/download_arxiv?arxiv_id=${id}`, {
+            method: 'POST',
+            headers: {
+              'X-API-Key': 'test-api-key-123'
+            }
+          });
+          const text = await res.text();
+          statusDiv.innerHTML += `Status for ${id}: ${res.status} (${text})<br/>`;
+        } catch (e) {
+          statusDiv.innerHTML += `Error for ${id}: ${e.message}<br/>`;
+        }
+      }
+    }
+  </script>
+</head>
+<body style="background: #0f172a; color: #f1f5f9; font-family: sans-serif; padding: 20px;">
+  <h1>ArXiv Downloader</h1>
+  <p>Trigger background downloads of the three ML evaluation papers.</p>
+  <button id="downloadBtn" onclick="start()" style="background: #6366f1; border: none; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer;">Start Download</button>
+  <div id="status" style="margin-top: 20px; font-family: monospace;">Ready</div>
+</body>
+</html>

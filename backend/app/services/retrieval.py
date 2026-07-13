@@ -27,7 +27,23 @@ async def dense_text_search(
     document_id: Optional[uuid.UUID] = None,
     limit: int = 50
 ) -> List[Chunk]:
-    """Retrieve text/table chunks using OpenAI vector cosine similarity."""
+    """Retrieve text/table chunks using OpenAI vector cosine similarity with Risk 10 fallback."""
+    from sqlalchemy import text
+    
+    # Check total chunks in the database for the search scope
+    count_stmt = select(func.count(Chunk.id))
+    if document_id:
+        count_stmt = count_stmt.where(Chunk.document_id == document_id)
+    count_res = await session.execute(count_stmt)
+    total_chunks = count_res.scalar() or 0
+    
+    if total_chunks >= 500:
+        # Set probes for IVFFlat index search
+        await session.execute(text("SET LOCAL ivfflat.probes = 20"))
+        logging.info(f"IVFFlat index active: set ivfflat.probes = 20 (total chunks = {total_chunks})")
+    else:
+        logging.info(f"Brute-force scan active: bypassing IVFFlat probes (total chunks = {total_chunks} < 500)")
+        
     stmt = select(Chunk).where(Chunk.content_type.in_(["text", "table"]))
     if document_id:
         stmt = stmt.where(Chunk.document_id == document_id)
@@ -98,6 +114,20 @@ async def image_clip_search(
         text_features /= text_features.norm(dim=-1, keepdim=True)
         query_clip_vector = text_features[0].cpu().numpy().tolist()
         
+    # Check total chunks for Risk 10
+    from sqlalchemy import text
+    count_stmt = select(func.count(Chunk.id))
+    if document_id:
+        count_stmt = count_stmt.where(Chunk.document_id == document_id)
+    count_res = await session.execute(count_stmt)
+    total_chunks = count_res.scalar() or 0
+    
+    if total_chunks >= 500:
+        await session.execute(text("SET LOCAL ivfflat.probes = 20"))
+        logging.info(f"IVFFlat index active for image search: set ivfflat.probes = 20 (total chunks = {total_chunks})")
+    else:
+        logging.info(f"Brute-force scan active for image search: bypassing IVFFlat probes (total chunks = {total_chunks} < 500)")
+
     stmt = select(Chunk).where(Chunk.content_type == "image")
     if document_id:
         stmt = stmt.where(Chunk.document_id == document_id)
