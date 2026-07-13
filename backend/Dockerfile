@@ -6,18 +6,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     curl \
     git \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast package installation
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
 WORKDIR /workspace
 
-# Copy pyproject.toml and install dependencies
+# Copy pyproject.toml, parse and install dependencies using standard pip
 COPY pyproject.toml .
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN python -c "import tomllib; data = tomllib.load(open('pyproject.toml', 'rb')); print('\n'.join(data['project']['dependencies']))" > requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code
 COPY . .
@@ -25,5 +23,5 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Run uvicorn server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run alembic migrations and then start uvicorn server
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
