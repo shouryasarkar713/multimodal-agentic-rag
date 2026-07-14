@@ -7,223 +7,187 @@ from app.config import settings
 
 def get_eval_llm():
     return ChatOpenAI(
-        model="gpt-4o-mini",
+        model=settings.openai_model_name,
         openai_api_key=settings.openai_api_key,
+        openai_api_base=settings.openai_api_base,
         temperature=0.0
     )
 
 def get_eval_embeddings():
-    return OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        openai_api_key=settings.openai_api_key
-    )
+    from app.services.embedding import get_embeddings_model
+    return get_embeddings_model()
 
 async def evaluate_faithfulness(answer: str, context_chunks: List[str]) -> float:
     """
     Check if the claims in the generated answer are supported by the retrieved context.
     Faithfulness = (number of supported claims) / (total claims in the answer).
     """
-    if not answer.strip():
-        return 0.0
-    
-    llm = get_eval_llm()
-    context_str = "\n\n".join([f"Chunk {i+1}:\n{chunk}" for i, chunk in enumerate(context_chunks)])
-    
-    # Step 1: Extract claims
-    extract_prompt = f"""
-Given a generated answer, extract all distinct factual claims made in it as a JSON list of strings.
-Do not extract questions or generic statements, only specific factual claims.
-
-Generated Answer:
-{answer}
-
-Respond ONLY with a valid JSON array of strings. Example:
-["The model uses AdamW optimizer", "BERT achieved 82.1% on GLUE"]
-"""
-    try:
-        res = await llm.ainvoke(extract_prompt)
-        content = res.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        claims = json.loads(content.strip())
+    if not answer or not context_chunks:
+        return 1.0
         
-        if not claims:
-            return 1.0 # No claims made means no hallucinated claims
+    llm = get_eval_llm()
+    
+    # Step 1: Extract claims from the generated answer
+    extract_prompt = (
+        f"Answer to analyze:\n{answer}\n\n"
+        "Extract all individual factual claims made in the answer above. "
+        "Return them as a JSON list of strings under the key 'claims'. Output ONLY valid JSON."
+    )
+    
+    try:
+        response = await llm.ainvoke(extract_prompt)
+        # Handle code fence formatting in LLM output
+        clean_text = re.sub(r"```json\s*|\s*```", "", response.content.strip())
+        claims = json.loads(clean_text).get("claims", [])
+    except Exception as e:
+        logging.error(f"Error extracting claims: {e}")
+        return 0.5  # Fallback score if parser fails
+        
+    if not claims:
+        return 1.0
+        
+    # Step 2: Check each claim against the context
+    context_str = "\n---\n".join(context_chunks)
+    grade_prompt = (
+        f"Context:\n{context_str}\n\n"
+        f"Claims to verify:\n{json.dumps(claims)}\n\n"
+        "For each claim, determine if it is directly supported or logically inferred by the context. "
+        "Return a JSON list of booleans (true for supported, false for unsupported) under the key 'supported'. "
+        "Output ONLY valid JSON. The length of the boolean list MUST match the number of claims."
+    )
+    
+    try:
+        response = await llm.ainvoke(grade_prompt)
+        clean_text = re.sub(r"```json\s*|\s*```", "", response.content.strip())
+        supported = json.loads(clean_text).get("supported", [])
+        
+        if len(supported) != len(claims):
+            # Fallback if size mismatch
+            supported = supported[:len(claims)] + [False] * max(0, len(claims) - len(supported))
             
-        # Step 2: Verify each claim against context
-        supported_count = 0
-        for claim in claims:
-            verify_prompt = f"""
-Analyze if the following Claim is directly supported by the provided Context. 
-The claim is supported if it is explicitly stated or can be directly inferred from the Context.
-
-Context:
-{context_str}
-
-Claim:
-{claim}
-
-Respond with exactly 'YES' if the claim is fully supported by the context, or 'NO' if it is not supported or contradicted. Do not write anything else.
-"""
-            verify_res = await llm.ainvoke(verify_prompt)
-            verdict = verify_res.content.strip().upper()
-            if 'YES' in verdict:
-                supported_count += 1
-                
+        supported_count = sum(1 for val in supported if val is True)
         return supported_count / len(claims)
     except Exception as e:
-        logging.error(f"Error in evaluate_faithfulness: {e}")
-        return 0.5 # Neutral fallback
-
-async def evaluate_answer_relevancy(question: str, answer: str) -> float:
+        logging.error(f"Error grading claims: {e}")
+        return 0.5
+        
+async def evaluate_answer_relevancy(query: str, answer: str) -> float:
     """
-    Measures how relevant the generated answer is to the user question.
-    Generates 3 questions that the answer could answer, embeds them,
-    and computes the average cosine similarity with the original question embedding.
+    Measure semantic similarity between the query and generated answer using embeddings.
     """
-    if not answer.strip():
+    if not answer:
         return 0.0
         
-    llm = get_eval_llm()
-    embeddings = get_eval_embeddings()
-    
-    prompt = f"""
-Given the following generated answer, write exactly 3 distinct, search-like questions that this answer could directly answer.
-Do not include any other text or explanation.
-
-Generated Answer:
-{answer}
-
-Respond with exactly 3 questions, one per line.
-"""
     try:
-        res = await llm.ainvoke(prompt)
-        lines = [line.strip() for line in res.content.strip().split('\n') if line.strip()]
-        generated_questions = lines[:3]
+        import numpy as np
+        emb_model = get_eval_embeddings()
         
-        if not generated_questions:
+        # embed both query and answer
+        vectors = await emb_model.aembed_documents([query, answer])
+        v1, v2 = np.array(vectors[0]), np.array(vectors[1])
+        
+        dot_product = np.dot(v1, v2)
+        norm_v1 = np.linalg.norm(v1)
+        norm_v2 = np.linalg.norm(v2)
+        
+        if norm_v1 == 0 or norm_v2 == 0:
             return 0.0
             
-        # Embed all questions
-        user_q_emb = await embeddings.aembed_query(question)
-        gen_embs = await embeddings.aembed_documents(generated_questions)
-        
-        # Calculate average cosine similarity
-        import numpy as np
-        similarities = []
-        u_norm = np.linalg.norm(user_q_emb)
-        for g_emb in gen_embs:
-            g_norm = np.linalg.norm(g_emb)
-            if u_norm > 0 and g_norm > 0:
-                cos_sim = np.dot(user_q_emb, g_emb) / (u_norm * g_norm)
-                similarities.append(float(cos_sim))
-                
-        return sum(similarities) / len(similarities) if similarities else 0.0
+        cosine_sim = dot_product / (norm_v1 * norm_v2)
+        # Cosine similarity is usually in [-1, 1], scale or clip to [0, 1]
+        return float(max(0.0, cosine_sim))
     except Exception as e:
-        logging.error(f"Error in evaluate_answer_relevancy: {e}")
+        logging.error(f"Error calculating answer relevancy: {e}")
         return 0.5
 
-async def evaluate_context_precision(question: str, retrieved_chunks: List[str]) -> float:
+async def evaluate_context_precision(query: str, retrieved_chunks: List[str], gold_relevant_chunks: List[str]) -> float:
     """
-    Evaluates if the retrieved chunks containing relevant information are ranked at the top.
-    Context Precision = (Sum_k (Precision@k * relevance(k))) / (Total relevant chunks in retrieved set).
+    Evaluate if relevant chunks are ranked higher in the retrieved chunks.
+    Mean Average Precision (MAP) style formula.
     """
-    if not retrieved_chunks:
+    if not retrieved_chunks or not gold_relevant_chunks:
         return 0.0
         
     llm = get_eval_llm()
-    relevance_scores = []
     
-    # Classify relevance for each chunk
+    # Grade relevance of each retrieved chunk using LLM
+    relevance_scores = []
     for chunk in retrieved_chunks:
-        prompt = f"""
-Determine if the following retrieved chunk contains relevant information that helps answer the user's question.
-
-Question:
-{question}
-
-Retrieved Chunk:
-{chunk}
-
-Respond with exactly 'YES' if relevant, or 'NO' if it is not relevant. Do not write anything else.
-"""
+        grade_prompt = (
+            f"Query: {query}\n\n"
+            f"Chunk content: {chunk}\n\n"
+            "Does this chunk contain information that directly helps answer the query? "
+            "Respond with 'YES' or 'NO' and nothing else."
+        )
         try:
-            res = await llm.ainvoke(prompt)
-            verdict = res.content.strip().upper()
-            relevance_scores.append(1 if 'YES' in verdict else 0)
-        except Exception:
+            res = await llm.ainvoke(grade_prompt)
+            clean_res = res.content.strip().upper()
+            relevance_scores.append(1 if "YES" in clean_res else 0)
+        except Exception as e:
+            logging.error(f"Error grading chunk relevance: {e}")
             relevance_scores.append(0)
             
-    # Calculate Precision@k and Context Precision
-    num_relevant = sum(relevance_scores)
-    if num_relevant == 0:
+    # Calculate precision at K
+    precision_at_k = []
+    relevant_found = 0
+    
+    for k, score in enumerate(relevance_scores):
+        if score == 1:
+            relevant_found += 1
+            precision_at_k.append(relevant_found / (k + 1))
+            
+    if not precision_at_k:
         return 0.0
         
-    precision_sum = 0.0
-    relevant_so_far = 0
-    
-    for k, is_relevant in enumerate(relevance_scores):
-        if is_relevant == 1:
-            relevant_so_far += 1
-            precision_at_k = relevant_so_far / (k + 1)
-            precision_sum += precision_at_k
-            
-    return precision_sum / num_relevant
+    return sum(precision_at_k) / len(precision_at_k)
 
-async def evaluate_citation_accuracy(answer: str, retrieved_chunks: List[Dict[str, Any]]) -> float:
+async def evaluate_citation_accuracy(answer: str, retrieved_chunks: List[str]) -> float:
     """
-    Verify that every cited claim [N] is supported by the N-th retrieved chunk.
-    Citation Accuracy = (number of correctly cited claims) / (total citations [N] in the answer).
+    Verify that every citation [N] matches text from chunk indices, and
+    every citation claim matches the context of the cited chunk.
+    Citation Accuracy = (correctly cited claims) / (total cited claims).
     """
-    # Find all inline citations [N]
-    citations = re.findall(r'\[(\d+)\]', answer)
-    if not citations:
-        return 1.0 # 100% accurate if no citations are hallucinated or needed
+    # Find all citations in format [N]
+    inline_cits = re.findall(r'\[(\d+)\]', answer)
+    if not inline_cits:
+        # If no citations were needed or made, default to 1.0 (unless sources are completely un-cited)
+        return 1.0
         
     llm = get_eval_llm()
-    correct_count = 0
-    total_citations = 0
     
-    # Split answer by sentences to analyze cited sentences
+    # Map citations to their actual sentences
+    # Split answer by sentences
     sentences = re.split(r'(?<=[.!?])\s+', answer)
-    
-    for sentence in sentences:
-        matches = re.findall(r'\[(\d+)\]', sentence)
-        if not matches:
+    cited_sentences = []
+    for sent in sentences:
+        match = re.search(r'\[(\d+)\]', sent)
+        if match:
+            idx = int(match.group(1)) - 1 # 1-based index to 0-based
+            # Clean citations from sentence text
+            clean_sent = re.sub(r'\[\d+\]', '', sent).strip()
+            cited_sentences.append((clean_sent, idx))
+            
+    if not cited_sentences:
+        return 1.0
+        
+    correct_citations = 0
+    for sent, chunk_idx in cited_sentences:
+        if chunk_idx < 0 or chunk_idx >= len(retrieved_chunks):
+            # Invalid/hallucinated chunk index
             continue
             
-        # Analyze claim for each matching citation number
-        for match in matches:
-            idx = int(match) - 1
-            total_citations += 1
+        cited_chunk = retrieved_chunks[chunk_idx]
+        grade_prompt = (
+            f"Cited Statement: {sent}\n\n"
+            f"Source Document Paragraph: {cited_chunk}\n\n"
+            "Does the Source Document Paragraph directly support the claim made in the Cited Statement? "
+            "Respond with 'YES' or 'NO' and nothing else."
+        )
+        try:
+            res = await llm.ainvoke(grade_prompt)
+            if "YES" in res.content.strip().upper():
+                correct_citations += 1
+        except Exception as e:
+            logging.error(f"Error grading citation: {e}")
             
-            # If citation index exceeds retrieved chunks, it's incorrect (hallucination)
-            if idx < 0 or idx >= len(retrieved_chunks):
-                continue
-                
-            chunk = retrieved_chunks[idx]
-            chunk_content = chunk.get("content_text") or chunk.get("content_markdown") or chunk.get("excerpt") or ""
-            
-            # Use LLM to verify if this specific sentence is supported by this chunk
-            prompt = f"""
-Verify if the cited claim is fully supported by the reference chunk.
-
-Reference Chunk:
-{chunk_content}
-
-Cited Claim:
-{sentence}
-
-Respond with exactly 'YES' if the reference chunk supports the claim, or 'NO' if it does not. Do not write anything else.
-"""
-            try:
-                res = await llm.ainvoke(prompt)
-                verdict = res.content.strip().upper()
-                if 'YES' in verdict:
-                    correct_count += 1
-            except Exception as e:
-                logging.error(f"Error in evaluate_citation_accuracy: {e}")
-                
-    return correct_count / total_citations if total_citations > 0 else 1.0
+    return correct_citations / len(cited_sentences)

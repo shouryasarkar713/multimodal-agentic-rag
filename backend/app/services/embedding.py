@@ -17,10 +17,43 @@ _vision_model = None
 # Rate limiter tracker (max 5 calls/sec = 0.2s spacing)
 _last_call_time = 0.0
 
+from langchain_core.embeddings import Embeddings
+
+class GeminiCompatibilityEmbeddings(Embeddings):
+    """Wrapper to support Google Gemini compatibility layer embeddings with zero-padding to 1536 dimensions."""
+    def __init__(self, model: str, openai_api_key: str):
+        self.embeddings = OpenAIEmbeddings(
+            model=model,
+            openai_api_key=openai_api_key,
+            openai_api_base=settings.openai_api_base
+        )
+        
+    def _pad(self, vec: List[float]) -> List[float]:
+        # Google text-embedding-004 outputs 768 dimensions. Pad to 1536.
+        if len(vec) < 1536:
+            vec = vec + [0.0] * (1536 - len(vec))
+        return vec[:1536]
+        
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        embs = self.embeddings.embed_documents(texts)
+        return [self._pad(e) for e in embs]
+        
+    def embed_query(self, text: str) -> List[float]:
+        emb = self.embeddings.embed_query(text)
+        return self._pad(emb)
+        
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        embs = await self.embeddings.aembed_documents(texts)
+        return [self._pad(e) for e in embs]
+        
+    async def aembed_query(self, text: str) -> List[float]:
+        emb = await self.embeddings.aembed_query(text)
+        return self._pad(emb)
+
 def get_embeddings_model():
     global _embeddings_model
     if _embeddings_model is None:
-        _embeddings_model = OpenAIEmbeddings(
+        _embeddings_model = GeminiCompatibilityEmbeddings(
             model=settings.embedding_model_name,
             openai_api_key=settings.openai_api_key
         )
@@ -44,8 +77,9 @@ def get_vision_model():
     global _vision_model
     if _vision_model is None:
         _vision_model = ChatOpenAI(
-            model=settings.openai_model_name,  # gpt-4.1
+            model=settings.openai_model_name,
             openai_api_key=settings.openai_api_key,
+            openai_api_base=settings.openai_api_base,
             max_tokens=150
         )
     return _vision_model
