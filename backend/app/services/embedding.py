@@ -17,6 +17,7 @@ _vision_model = None
 # Rate limiter tracker (max 5 calls/sec = 0.2s spacing)
 _last_call_time = 0.0
 
+import logging
 from langchain_core.embeddings import Embeddings
 
 class GeminiCompatibilityEmbeddings(Embeddings):
@@ -31,103 +32,64 @@ class GeminiCompatibilityEmbeddings(Embeddings):
             vec = vec + [0.0] * (1536 - len(vec))
         return vec[:1536]
         
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # Use native Google batchEmbedContents REST API
-        import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:batchEmbedContents?key={self.api_key}"
-        
-        requests = []
-        for text in texts:
-            requests.append({
-                "model": f"models/{self.model}",
-                "content": {
-                    "parts": [{"text": text}]
-                }
-            })
-            
-        payload = {"requests": requests}
-        
-        try:
-            with httpx.Client(timeout=60.0) as client:
-                res = client.post(url, json=payload)
-                res.raise_for_status()
-                data = res.json()
-                embeddings = [item["values"] for item in data["embeddings"]]
-                return [self._pad(e) for e in embeddings]
-        except Exception as e:
-            logging.error(f"Error querying Gemini native embeddings: {e}")
-            raise
-            
     def embed_query(self, text: str) -> List[float]:
-        # Use native Google embedContent REST API
         import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:embedContent?key={self.api_key}"
-        
-        payload = {
-            "model": f"models/{self.model}",
-            "content": {
-                "parts": [{"text": text}]
-            }
-        }
-        
-        try:
-            with httpx.Client(timeout=30.0) as client:
-                res = client.post(url, json=payload)
-                res.raise_for_status()
-                data = res.json()
-                emb = data["embedding"]["values"]
-                return self._pad(emb)
-        except Exception as e:
-            logging.error(f"Error querying Gemini native embedding: {e}")
-            raise
-            
-    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
-        import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:batchEmbedContents?key={self.api_key}"
-        
-        requests = []
-        for text in texts:
-            requests.append({
+        # Try stable v1 first, fallback to v1beta
+        for api_version in ["v1", "v1beta"]:
+            url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+            payload = {
                 "model": f"models/{self.model}",
                 "content": {
                     "parts": [{"text": text}]
                 }
-            })
-            
-        payload = {"requests": requests}
+            }
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    res = client.post(url, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        emb = data["embedding"]["values"]
+                        return self._pad(emb)
+                    else:
+                        logging.warning(f"Gemini native embedding ({api_version}) returned {res.status_code}: {res.text}")
+            except Exception as e:
+                logging.error(f"Error querying Gemini native embedding ({api_version}): {e}")
+                
+        raise Exception(f"Failed to query Gemini embeddings for model models/{self.model}")
         
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                res = await client.post(url, json=payload)
-                res.raise_for_status()
-                data = res.json()
-                embeddings = [item["values"] for item in data["embeddings"]]
-                return [self._pad(e) for e in embeddings]
-        except Exception as e:
-            logging.error(f"Error querying Gemini native embeddings async: {e}")
-            raise
-            
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        # Run sequential queries to avoid batch endpoint issues
+        return [self.embed_query(t) for t in texts]
+        
     async def aembed_query(self, text: str) -> List[float]:
         import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:embedContent?key={self.api_key}"
-        
-        payload = {
-            "model": f"models/{self.model}",
-            "content": {
-                "parts": [{"text": text}]
+        for api_version in ["v1", "v1beta"]:
+            url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+            payload = {
+                "model": f"models/{self.model}",
+                "content": {
+                    "parts": [{"text": text}]
+                }
             }
-        }
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    res = await client.post(url, json=payload)
+                    if res.status_code == 200:
+                        data = res.json()
+                        emb = data["embedding"]["values"]
+                        return self._pad(emb)
+                    else:
+                        logging.warning(f"Gemini native embedding async ({api_version}) returned {res.status_code}: {res.text}")
+            except Exception as e:
+                logging.error(f"Error querying Gemini native embedding async ({api_version}): {e}")
+                
+        raise Exception(f"Failed to query Gemini embeddings async for model models/{self.model}")
         
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.post(url, json=payload)
-                res.raise_for_status()
-                data = res.json()
-                emb = data["embedding"]["values"]
-                return self._pad(emb)
-        except Exception as e:
-            logging.error(f"Error querying Gemini native embedding async: {e}")
-            raise
+    async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        import asyncio
+        # Query in parallel for performance using asyncio.gather
+        tasks = [self.aembed_query(t) for t in texts]
+        return await asyncio.gather(*tasks)
 
 def get_embeddings_model():
     global _embeddings_model

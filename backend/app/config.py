@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     data_dir: str = Field(default="/data", alias="DATA_DIR")
     openai_model_name: str = Field(default="gemini-1.5-flash", alias="OPENAI_MODEL_NAME")
     embedding_model_name: str = Field(default="text-embedding-004", alias="EMBEDDING_MODEL_NAME")
-    openai_api_base: str | None = Field(default="https://generativelanguage.googleapis.com/v1beta/openai", alias="OPENAI_API_BASE")
+    openai_api_base: str | None = Field(default="https://generativelanguage.googleapis.com/v1beta/openai/", alias="OPENAI_API_BASE")
     
     # Model configs from tech stack
     clip_model_name: str = "ViT-B-32"
