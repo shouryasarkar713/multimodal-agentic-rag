@@ -38,7 +38,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         import re
         import random
         
-        max_retries = 8
+        max_retries = 5
         last_error = None
         for attempt in range(max_retries):
             for api_version in ["v1beta", "v1"]:
@@ -50,7 +50,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     }
                 }
                 try:
-                    with httpx.Client(timeout=60.0) as client:
+                    with httpx.Client(timeout=30.0) as client:
                         res = client.post(url, json=payload)
                         if res.status_code == 200:
                             data = res.json()
@@ -69,32 +69,25 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     is_transient = "disconnect" in err_str or "ssl" in err_str or "eof" in err_str or "timeout" in err_str or "server error" in err_str or "connection" in err_str
                     
                     if is_rate_limit:
-                        sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
+                        sleep_time = min((2 ** attempt) + random.uniform(0.5, 1.5) + 2, 30)
                         match = re.search(r'retry in ([\d\.]+)s', str(e))
                         if match:
                             sleep_time = float(match.group(1)) + 1
-                        logging.warning(f"Embedding rate limit hit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        logging.warning(f"Embedding rate limit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
                         time.sleep(sleep_time)
-                        break  # Break inner loop to retry outer loop
+                        break
                     elif is_transient:
-                        sleep_time = (2 ** attempt) + random.uniform(0.5, 2.0)
-                        logging.warning(f"Embedding transient error: {e}. Retrying in {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        sleep_time = random.uniform(0.5, 2.0)
+                        logging.warning(f"Embedding transient error: {e}. Retrying in {sleep_time:.1f}s")
                         time.sleep(sleep_time)
-                        break  # Break inner loop to retry outer loop
+                        break
                     else:
-                        logging.error(f"Embedding non-retryable error ({api_version}): {e}")
+                        logging.error(f"Embedding error ({api_version}): {e}")
                         
         raise Exception(f"Failed to query Gemini embeddings after {max_retries} attempts. Last error: {last_error}")
         
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        import time
-        results = []
-        for i, t in enumerate(texts):
-            results.append(self.embed_query(t))
-            # Small delay between sequential calls to avoid overwhelming API
-            if i < len(texts) - 1:
-                time.sleep(0.3)
-        return results
+        return [self.embed_query(t) for t in texts]
         
     async def aembed_query(self, text: str) -> List[float]:
         import httpx
@@ -102,7 +95,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         import re
         import random
         
-        max_retries = 8
+        max_retries = 5
         last_error = None
         for attempt in range(max_retries):
             for api_version in ["v1beta", "v1"]:
@@ -114,7 +107,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     }
                 }
                 try:
-                    async with httpx.AsyncClient(timeout=60.0) as client:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
                         res = await client.post(url, json=payload)
                         if res.status_code == 200:
                             data = res.json()
@@ -133,29 +126,27 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     is_transient = "disconnect" in err_str or "ssl" in err_str or "eof" in err_str or "timeout" in err_str or "server error" in err_str or "connection" in err_str
                     
                     if is_rate_limit:
-                        sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
+                        sleep_time = min((2 ** attempt) + random.uniform(0.5, 1.5) + 2, 30)
                         match = re.search(r'retry in ([\d\.]+)s', str(e))
                         if match:
                             sleep_time = float(match.group(1)) + 1
-                        logging.warning(f"Embedding async rate limit hit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        logging.warning(f"Embedding async rate limit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
                         await asyncio.sleep(sleep_time)
                         break
                     elif is_transient:
-                        sleep_time = (2 ** attempt) + random.uniform(0.5, 2.0)
-                        logging.warning(f"Embedding async transient error: {e}. Retrying in {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        sleep_time = random.uniform(0.5, 2.0)
+                        logging.warning(f"Embedding async transient error: {e}. Retrying in {sleep_time:.1f}s")
                         await asyncio.sleep(sleep_time)
                         break
                     else:
-                        logging.error(f"Embedding async non-retryable error ({api_version}): {e}")
+                        logging.error(f"Embedding async error ({api_version}): {e}")
                         
         raise Exception(f"Failed to query Gemini embeddings async after {max_retries} attempts. Last error: {last_error}")
         
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
-        # Run sequentially to avoid overwhelming the API
-        results = []
-        for t in texts:
-            results.append(await self.aembed_query(t))
-        return results
+        import asyncio
+        tasks = [self.aembed_query(t) for t in texts]
+        return await asyncio.gather(*tasks)
 
 def get_embeddings_model():
     global _embeddings_model
