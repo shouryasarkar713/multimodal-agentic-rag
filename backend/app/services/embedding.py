@@ -34,27 +34,45 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         
     def embed_query(self, text: str) -> List[float]:
         import httpx
-        # Try stable v1 first, fallback to v1beta
-        for api_version in ["v1", "v1beta"]:
-            url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
-            payload = {
-                "model": f"models/{self.model}",
-                "content": {
-                    "parts": [{"text": text}]
+        import time
+        import re
+        import random
+        
+        max_retries = 6
+        for attempt in range(max_retries):
+            # Try stable v1 first, fallback to v1beta
+            for api_version in ["v1", "v1beta"]:
+                url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+                payload = {
+                    "model": f"models/{self.model}",
+                    "content": {
+                        "parts": [{"text": text}]
+                    }
                 }
-            }
-            try:
-                with httpx.Client(timeout=30.0) as client:
-                    res = client.post(url, json=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        emb = data["embedding"]["values"]
-                        return self._pad(emb)
+                try:
+                    with httpx.Client(timeout=30.0) as client:
+                        res = client.post(url, json=payload)
+                        if res.status_code == 200:
+                            data = res.json()
+                            emb = data["embedding"]["values"]
+                            return self._pad(emb)
+                        elif res.status_code == 429:
+                            raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
+                        else:
+                            logging.warning(f"Gemini native embedding ({api_version}) returned {res.status_code}: {res.text}")
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str:
+                        sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
+                        match = re.search(r'retry in ([\d\.]+)s', str(e))
+                        if match:
+                            sleep_time = float(match.group(1)) + 1
+                        logging.warning(f"Gemini Embeddings rate limit (429) hit. Sleeping for {sleep_time:.2f}s...")
+                        time.sleep(sleep_time)
+                        break  # Break inner loop to retry outer loop
                     else:
-                        logging.warning(f"Gemini native embedding ({api_version}) returned {res.status_code}: {res.text}")
-            except Exception as e:
-                logging.error(f"Error querying Gemini native embedding ({api_version}): {e}")
-                
+                        logging.error(f"Error querying Gemini native embedding ({api_version}): {e}")
+                        
         raise Exception(f"Failed to query Gemini embeddings for model models/{self.model}")
         
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -63,26 +81,44 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         
     async def aembed_query(self, text: str) -> List[float]:
         import httpx
-        for api_version in ["v1", "v1beta"]:
-            url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
-            payload = {
-                "model": f"models/{self.model}",
-                "content": {
-                    "parts": [{"text": text}]
+        import asyncio
+        import re
+        import random
+        
+        max_retries = 6
+        for attempt in range(max_retries):
+            for api_version in ["v1", "v1beta"]:
+                url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+                payload = {
+                    "model": f"models/{self.model}",
+                    "content": {
+                        "parts": [{"text": text}]
+                    }
                 }
-            }
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    res = await client.post(url, json=payload)
-                    if res.status_code == 200:
-                        data = res.json()
-                        emb = data["embedding"]["values"]
-                        return self._pad(emb)
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        res = await client.post(url, json=payload)
+                        if res.status_code == 200:
+                            data = res.json()
+                            emb = data["embedding"]["values"]
+                            return self._pad(emb)
+                        elif res.status_code == 429:
+                            raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
+                        else:
+                            logging.warning(f"Gemini native embedding async ({api_version}) returned {res.status_code}: {res.text}")
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str:
+                        sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
+                        match = re.search(r'retry in ([\d\.]+)s', str(e))
+                        if match:
+                            sleep_time = float(match.group(1)) + 1
+                        logging.warning(f"Gemini Embeddings async rate limit (429) hit. Sleeping for {sleep_time:.2f}s...")
+                        await asyncio.sleep(sleep_time)
+                        break
                     else:
-                        logging.warning(f"Gemini native embedding async ({api_version}) returned {res.status_code}: {res.text}")
-            except Exception as e:
-                logging.error(f"Error querying Gemini native embedding async ({api_version}): {e}")
-                
+                        logging.error(f"Error querying Gemini native embedding async ({api_version}): {e}")
+                        
         raise Exception(f"Failed to query Gemini embeddings async for model models/{self.model}")
         
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -126,12 +162,12 @@ def get_vision_model():
     return _vision_model
 
 def enforce_rate_limit():
-    """Ensure at least 200ms spacing between Vision API calls."""
+    """Ensure at least 4.5s spacing between Vision API calls to respect 15 RPM free tier limits."""
     global _last_call_time
     now = time.time()
     elapsed = now - _last_call_time
-    if elapsed < 0.2:
-        time.sleep(0.2 - elapsed)
+    if elapsed < 4.5:
+        time.sleep(4.5 - elapsed)
     _last_call_time = time.time()
 
 def embed_text_batch(texts: List[str]) -> List[List[float]]:
@@ -157,8 +193,8 @@ def embed_image(image_path: str) -> List[float]:
         
     return vector
 
-def caption_image(image_path: str, context: str) -> str:
-    """Generate technical caption for a figure using GPT-4.1 vision."""
+async def caption_image(image_path: str, context: str) -> str:
+    """Generate technical caption for a figure using Gemini vision with 429 rate limit retries."""
     enforce_rate_limit()
     
     # Base64 encode and resize figure to max 512px
@@ -185,5 +221,30 @@ def caption_image(image_path: str, context: str) -> str:
         ]
     )
     
-    response = model.invoke([message])
-    return response.content.strip()
+    import asyncio
+    import re
+    import random
+    
+    max_retries = 6
+    for attempt in range(max_retries):
+        try:
+            response = await model.ainvoke([message])
+            return response.content.strip()
+        except Exception as e:
+            err_str = str(e).lower()
+            if "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str:
+                sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 5
+                match = re.search(r'retry in ([\d\.]+)s', str(e))
+                if match:
+                    sleep_time = float(match.group(1)) + 1
+                
+                logging.warning(
+                    f"Gemini API rate limit (429) hit during image captioning. "
+                    f"Sleeping for {sleep_time:.2f}s before retry {attempt + 1}/{max_retries}..."
+                )
+                await asyncio.sleep(sleep_time)
+            else:
+                logging.error(f"Non-rate-limit exception in caption_image: {e}")
+                raise e
+                
+    raise Exception("Max retries exceeded for Gemini image captioning due to rate limits.")

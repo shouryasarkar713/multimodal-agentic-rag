@@ -56,7 +56,7 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
                 context_text = page_data.full_text[:1000] if page_data else ""
                 
                 # Vision captioning using GPT-4.1
-                ai_caption = caption_image(ic.image_path, context_text)
+                ai_caption = await caption_image(ic.image_path, context_text)
                 ic.image_caption = ai_caption
             
             # Combine all chunks
