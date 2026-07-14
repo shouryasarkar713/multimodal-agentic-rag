@@ -55,9 +55,17 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
                 page_data = next((p for p in pages_content if p.page_number == ic.page_number), None)
                 context_text = page_data.full_text[:1000] if page_data else ""
                 
-                # Vision captioning using GPT-4.1
-                ai_caption = await caption_image(ic.image_path, context_text)
-                ic.image_caption = ai_caption
+                # Vision captioning with graceful fallback on rate limit failures
+                try:
+                    ai_caption = await caption_image(ic.image_path, context_text)
+                    ic.image_caption = ai_caption
+                except Exception as caption_err:
+                    logging.warning(
+                        f"Image captioning failed for page {ic.page_number}, "
+                        f"using fallback text caption: {caption_err}"
+                    )
+                    # Fallback: use first 200 chars of surrounding text as caption
+                    ic.image_caption = f"Figure from page {ic.page_number}. {context_text[:200]}"
             
             # Combine all chunks
             all_chunks = text_chunks + table_chunks + image_chunks
