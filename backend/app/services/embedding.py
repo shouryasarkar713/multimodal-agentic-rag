@@ -38,10 +38,10 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         import re
         import random
         
-        max_retries = 6
+        max_retries = 8
+        last_error = None
         for attempt in range(max_retries):
-            # Try stable v1 first, fallback to v1beta
-            for api_version in ["v1", "v1beta"]:
+            for api_version in ["v1beta", "v1"]:
                 url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
                 payload = {
                     "model": f"models/{self.model}",
@@ -50,7 +50,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     }
                 }
                 try:
-                    with httpx.Client(timeout=30.0) as client:
+                    with httpx.Client(timeout=60.0) as client:
                         res = client.post(url, json=payload)
                         if res.status_code == 200:
                             data = res.json()
@@ -58,26 +58,43 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                             return self._pad(emb)
                         elif res.status_code == 429:
                             raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
+                        elif res.status_code >= 500:
+                            raise Exception(f"Server error {res.status_code}: {res.text[:200]}")
                         else:
-                            logging.warning(f"Gemini native embedding ({api_version}) returned {res.status_code}: {res.text}")
+                            logging.warning(f"Gemini embedding ({api_version}) returned {res.status_code}: {res.text[:200]}")
                 except Exception as e:
+                    last_error = e
                     err_str = str(e).lower()
-                    if "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str:
+                    is_rate_limit = "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str
+                    is_transient = "disconnect" in err_str or "ssl" in err_str or "eof" in err_str or "timeout" in err_str or "server error" in err_str or "connection" in err_str
+                    
+                    if is_rate_limit:
                         sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
                         match = re.search(r'retry in ([\d\.]+)s', str(e))
                         if match:
                             sleep_time = float(match.group(1)) + 1
-                        logging.warning(f"Gemini Embeddings rate limit (429) hit. Sleeping for {sleep_time:.2f}s...")
+                        logging.warning(f"Embedding rate limit hit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        time.sleep(sleep_time)
+                        break  # Break inner loop to retry outer loop
+                    elif is_transient:
+                        sleep_time = (2 ** attempt) + random.uniform(0.5, 2.0)
+                        logging.warning(f"Embedding transient error: {e}. Retrying in {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
                         time.sleep(sleep_time)
                         break  # Break inner loop to retry outer loop
                     else:
-                        logging.error(f"Error querying Gemini native embedding ({api_version}): {e}")
+                        logging.error(f"Embedding non-retryable error ({api_version}): {e}")
                         
-        raise Exception(f"Failed to query Gemini embeddings for model models/{self.model}")
+        raise Exception(f"Failed to query Gemini embeddings after {max_retries} attempts. Last error: {last_error}")
         
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # Run sequential queries to avoid batch endpoint issues
-        return [self.embed_query(t) for t in texts]
+        import time
+        results = []
+        for i, t in enumerate(texts):
+            results.append(self.embed_query(t))
+            # Small delay between sequential calls to avoid overwhelming API
+            if i < len(texts) - 1:
+                time.sleep(0.3)
+        return results
         
     async def aembed_query(self, text: str) -> List[float]:
         import httpx
@@ -85,9 +102,10 @@ class GeminiCompatibilityEmbeddings(Embeddings):
         import re
         import random
         
-        max_retries = 6
+        max_retries = 8
+        last_error = None
         for attempt in range(max_retries):
-            for api_version in ["v1", "v1beta"]:
+            for api_version in ["v1beta", "v1"]:
                 url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
                 payload = {
                     "model": f"models/{self.model}",
@@ -96,7 +114,7 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     }
                 }
                 try:
-                    async with httpx.AsyncClient(timeout=30.0) as client:
+                    async with httpx.AsyncClient(timeout=60.0) as client:
                         res = await client.post(url, json=payload)
                         if res.status_code == 200:
                             data = res.json()
@@ -104,28 +122,40 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                             return self._pad(emb)
                         elif res.status_code == 429:
                             raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
+                        elif res.status_code >= 500:
+                            raise Exception(f"Server error {res.status_code}: {res.text[:200]}")
                         else:
-                            logging.warning(f"Gemini native embedding async ({api_version}) returned {res.status_code}: {res.text}")
+                            logging.warning(f"Embedding async ({api_version}) returned {res.status_code}: {res.text[:200]}")
                 except Exception as e:
+                    last_error = e
                     err_str = str(e).lower()
-                    if "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str:
+                    is_rate_limit = "429" in err_str or "rate limit" in err_str or "resource_exhausted" in err_str
+                    is_transient = "disconnect" in err_str or "ssl" in err_str or "eof" in err_str or "timeout" in err_str or "server error" in err_str or "connection" in err_str
+                    
+                    if is_rate_limit:
                         sleep_time = (2 ** attempt) + random.uniform(0.5, 1.5) + 2
                         match = re.search(r'retry in ([\d\.]+)s', str(e))
                         if match:
                             sleep_time = float(match.group(1)) + 1
-                        logging.warning(f"Gemini Embeddings async rate limit (429) hit. Sleeping for {sleep_time:.2f}s...")
+                        logging.warning(f"Embedding async rate limit hit. Sleeping {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
+                        await asyncio.sleep(sleep_time)
+                        break
+                    elif is_transient:
+                        sleep_time = (2 ** attempt) + random.uniform(0.5, 2.0)
+                        logging.warning(f"Embedding async transient error: {e}. Retrying in {sleep_time:.1f}s (attempt {attempt+1}/{max_retries})")
                         await asyncio.sleep(sleep_time)
                         break
                     else:
-                        logging.error(f"Error querying Gemini native embedding async ({api_version}): {e}")
+                        logging.error(f"Embedding async non-retryable error ({api_version}): {e}")
                         
-        raise Exception(f"Failed to query Gemini embeddings async for model models/{self.model}")
+        raise Exception(f"Failed to query Gemini embeddings async after {max_retries} attempts. Last error: {last_error}")
         
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
-        import asyncio
-        # Query in parallel for performance using asyncio.gather
-        tasks = [self.aembed_query(t) for t in texts]
-        return await asyncio.gather(*tasks)
+        # Run sequentially to avoid overwhelming the API
+        results = []
+        for t in texts:
+            results.append(await self.aembed_query(t))
+        return results
 
 def get_embeddings_model():
     global _embeddings_model
