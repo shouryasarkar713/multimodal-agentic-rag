@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     langsmith_api_key: str | None = Field(default=None, alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="research-assistant", alias="LANGSMITH_PROJECT")
     data_dir: str = Field(default="/data", alias="DATA_DIR")
-    openai_model_name: str = Field(default="gpt-4.1", alias="OPENAI_MODEL_NAME")
+    openai_model_name: str = Field(default="gpt-4o", alias="OPENAI_MODEL_NAME")
     embedding_model_name: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL_NAME")
     
     # Model configs from tech stack
