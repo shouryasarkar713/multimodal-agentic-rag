@@ -9,7 +9,7 @@ def get_eval_llm():
     return ChatOpenAI(
         model=settings.openai_model_name,
         openai_api_key=settings.openai_api_key,
-        openai_api_base=settings.openai_api_base,
+        base_url=settings.openai_api_base,
         temperature=0.0
     )
 

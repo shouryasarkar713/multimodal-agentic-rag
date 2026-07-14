@@ -120,7 +120,7 @@ def get_vision_model():
         _vision_model = ChatOpenAI(
             model=settings.openai_model_name,
             openai_api_key=settings.openai_api_key,
-            openai_api_base=settings.openai_api_base,
+            base_url=settings.openai_api_base,
             max_tokens=150
         )
     return _vision_model
