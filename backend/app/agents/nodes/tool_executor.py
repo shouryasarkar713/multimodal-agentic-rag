@@ -91,7 +91,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     # Resolve absolute image path
     rel_path = target_chunk.image_path or ""
     # Normalize paths: if absolute, keep as is; if relative, prepend data directory
-    abs_image_path = rel_path if os.isabs(rel_path) else os.path.join(settings.data_dir, "images", os.path.basename(rel_path))
+    abs_image_path = rel_path if os.path.isabs(rel_path) else os.path.join(settings.data_dir, "images", os.path.basename(rel_path))
     
     try:
         base64_image = get_image_base64(abs_image_path)
