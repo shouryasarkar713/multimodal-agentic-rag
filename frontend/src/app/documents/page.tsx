@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Library, Upload, Plus, X } from 'lucide-react';
+import { FileText, Search, Library, Upload, Plus, X, ZoomIn, Sparkles } from 'lucide-react';
 import { useDocuments } from '../../hooks/useDocuments';
 import { useChatContext } from '../../context/ChatContext';
 import { DocumentList } from '../../components/DocumentList';
@@ -14,7 +14,7 @@ export default function LibraryPage() {
   const { setSelectedDocumentIds } = useChatContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number } | null>(null);
+  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string } | null>(null);
 
   const handleChatAboutDocument = (docId: string) => {
     setSelectedDocumentIds([docId]);
@@ -29,7 +29,7 @@ export default function LibraryPage() {
     return titleMatch || filenameMatch || authorsMatch;
   });
 
-  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number) => {
+  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number, documentId: string) => {
     const serverBaseUrl = process.env.NEXT_PUBLIC_API_URL
       ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '')
       : 'http://localhost:8000';
@@ -37,11 +37,13 @@ export default function LibraryPage() {
       url: imageUrl.startsWith('http') ? imageUrl : `${serverBaseUrl}${imageUrl}`,
       caption,
       page: pageNumber,
+      docId: documentId
     });
   };
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 relative">
+      {/* Page Header Actions */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2">
@@ -63,6 +65,7 @@ export default function LibraryPage() {
         </button>
       </div>
 
+      {/* Filter and Search Bar */}
       <div className="relative max-w-md w-full">
         <input
           type="text"
@@ -71,9 +74,10 @@ export default function LibraryPage() {
           placeholder="Filter by title, author, or filename..."
           className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
         />
-        <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
       </div>
 
+      {/* Complete Documents List */}
       <DocumentList
         documents={filteredDocs}
         onDelete={deleteDoc}
@@ -81,6 +85,7 @@ export default function LibraryPage() {
         onOpenFigure={handleOpenFigure}
       />
 
+      {/* Ingestion Upload Overlay Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-xl rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl p-6 relative flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
@@ -128,6 +133,7 @@ export default function LibraryPage() {
         </div>
       )}
 
+      {/* Shared Gallery Lightbox */}
       {lightboxFig && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <button
@@ -146,8 +152,8 @@ export default function LibraryPage() {
               />
             </div>
             
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl max-w-2xl mx-auto">
-              <div className="flex items-center justify-between gap-3 mb-1.5">
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl max-w-2xl mx-auto flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <h4 className="font-extrabold text-xs text-slate-200">
                   FIGURE DETAIL
                 </h4>
@@ -158,6 +164,20 @@ export default function LibraryPage() {
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">
                 {lightboxFig.caption || 'No caption available.'}
               </p>
+              
+              <button
+                onClick={async () => {
+                  setSelectedDocumentIds([lightboxFig.docId]);
+                  // Store query to submit on Chat page load
+                  sessionStorage.setItem('auto_submit_query', `explain figure: ${lightboxFig.caption || 'figure'}`);
+                  setLightboxFig(null);
+                  router.push('/chat');
+                }}
+                className="mt-1 w-full py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                Explain this figure
+              </button>
             </div>
           </div>
         </div>
