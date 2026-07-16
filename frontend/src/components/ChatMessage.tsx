@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Bot, User, Activity } from 'lucide-react';
-import { Message } from '../lib/types';
+import { MessageSquare, Bot, User, Share2, FileText, Activity } from 'lucide-react';
+import { Message, Citation } from '../lib/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { ExportButton } from './ExportButton';
 import { CitationCard } from './CitationCard';
@@ -16,7 +16,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const hasCitations = message.citations && message.citations.length > 0;
   const hasFigures = message.figure_refs && message.figure_refs.length > 0;
 
+  // Render text content and highlight citations/figures
   const renderMessageBody = (text: string) => {
+    // Regex matching [N] or [citation not found]
     const regex = /(\[(\d+)\]|\[citation not found\]|\[Figure from source (\d+)\])/g;
     const parts = text.split(regex);
     if (parts.length === 1) {
@@ -26,6 +28,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
     return (
       <p className="whitespace-pre-wrap leading-relaxed">
         {parts.map((part, idx) => {
+          if (part === undefined) return null;
+          if (/^\d+$/.test(part)) return null;
+          
+          // If it matches [N]
           if (part.startsWith('[') && part.endsWith(']')) {
             if (part === '[citation not found]') {
               return (
@@ -39,6 +45,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             }
             if (part.startsWith('[Figure from source')) {
               const numStr = part.match(/\d+/)?.[0];
+              const idxNum = numStr ? parseInt(numStr, 10) : null;
               return (
                 <span
                   key={idx}
@@ -48,6 +55,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 </span>
               );
             }
+            // Standard citation [N]
             const num = parseInt(part.slice(1, -1), 10);
             const matchedCitation = message.citations?.[num - 1];
             
@@ -56,9 +64,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 <span
                   key={idx}
                   onClick={() => {
+                    // Trigger click event or show a notification
                     const el = document.getElementById(`citation-card-${num - 1}`);
                     if (el) {
                       el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                      // Add temporary highlight animation
                       el.classList.add('ring-2', 'ring-indigo-500');
                       setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-500'), 1500);
                     }
@@ -79,7 +89,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </span>
             );
           }
-          if (part === undefined || /^\d+$/.test(part)) return null;
           return part;
         })}
       </p>
@@ -93,6 +102,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         : 'bg-indigo-950/5 border-indigo-950/10 justify-start'
     }`}>
       <div className={`flex gap-4 max-w-4xl w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Role Icon Avatar */}
         <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${
           isUser 
             ? 'bg-slate-800 border-slate-750 text-slate-300' 
@@ -101,7 +111,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
           {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
         </div>
 
+        {/* Message Content Container */}
         <div className="flex flex-col gap-3 flex-1 min-w-0">
+          {/* Header Metadata */}
           {!isUser && (
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
@@ -113,6 +125,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 )}
               </div>
               
+              {/* Top Right Trace Trigger */}
               {message.trace_id && (
                 <Link
                   href={`/trace/${message.trace_id}`}
@@ -130,10 +143,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </span>
           )}
 
+          {/* Text Body */}
           <div className={`text-slate-200 text-xs md:text-sm font-semibold leading-relaxed ${isUser ? 'bg-slate-800/40 border border-slate-800/80 p-4 rounded-2xl max-w-xl self-end' : ''}`}>
             {renderMessageBody(message.content)}
           </div>
 
+          {/* Side-Scrollable Citations List */}
           {!isUser && hasCitations && (
             <div className="flex flex-col gap-2.5 mt-3 border-t border-slate-800/20 pt-4">
               <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -149,6 +164,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </div>
           )}
 
+          {/* Side-Scrollable Figures List */}
           {!isUser && hasFigures && (
             <div className="flex flex-col gap-2.5 mt-3 border-t border-slate-800/20 pt-4">
               <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -162,6 +178,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </div>
           )}
 
+          {/* Footer Actions Row */}
           {!isUser && (
             <div className="flex items-center justify-between mt-4 border-t border-slate-850 pt-3">
               <div className="flex items-center gap-2">
