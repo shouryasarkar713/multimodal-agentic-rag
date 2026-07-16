@@ -90,11 +90,15 @@ async def get_session_messages(
         citations = []
         if m.citations:
             for cit in m.citations:
+                # Use document_title as fallback if filename not present (backward compatibility)
+                filename = cit.get("filename") or cit.get("document_title") or "Unknown"
+                # Use "excerpt" as the key (not "content_text")
+                content_text = cit.get("excerpt") or cit.get("content_text") or ""
                 citations.append(CitationItem(
                     document_id=uuid.UUID(cit["document_id"]),
-                    filename=cit["filename"],
+                    filename=filename,
                     page_number=cit["page_number"],
-                    content_text=cit["content_text"]
+                    content_text=content_text
                 ))
                 
         message_items.append(MessageItem(
@@ -104,6 +108,7 @@ async def get_session_messages(
             citations=citations or None,
             figure_refs=m.figure_refs,
             confidence=m.confidence,
+            trace_id=m.trace_id,
             created_at=m.created_at
         ))
         
