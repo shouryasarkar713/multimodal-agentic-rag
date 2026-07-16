@@ -3,8 +3,8 @@ import time
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from langchain_openai import ChatOpenAI
 
+from app.agents.llm_factory import get_generation_llm
 from app.config import settings
 from app.models.db import Chunk, Document
 from app.agents.state import AgentState
@@ -69,12 +69,8 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
             context=context_str,
             target_description=target_desc
         )
-        
-        llm = ChatOpenAI(
-            model=settings.openai_model_name,
-            openai_api_key=settings.openai_api_key,
-            temperature=0.0
-        )
+
+        llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         answer = response.content.strip()
         

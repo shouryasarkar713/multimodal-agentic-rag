@@ -3,7 +3,7 @@ import io
 import uuid
 import os
 import fitz  # PyMuPDF
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,21 +66,18 @@ async def test_upload_endpoints_validation(client: AsyncClient):
     assert response.json() == {"detail": "Uploaded file is empty."}
 
 @pytest.mark.asyncio
-@patch("app.services.ingestion.embed_text_batch")
+@patch("app.services.ingestion.aembed_text_batch")
 @patch("app.services.ingestion.embed_image")
-@patch("app.services.ingestion.caption_image")
 async def test_ingestion_pipeline_success(
-    mock_caption_image,
     mock_embed_image,
-    mock_embed_text,
+    mock_aembed_text,
     client: AsyncClient,
     db_session: AsyncSession
 ):
     """Test full 10-step ingestion pipeline with mocked embedding and vision endpoints."""
     # Set up mocks
-    mock_embed_text.side_effect = lambda texts: [[0.1] * 1536 for _ in texts]
+    mock_aembed_text.side_effect = AsyncMock(side_effect=lambda texts, **kwargs: [[0.1] * 1536 for _ in texts])
     mock_embed_image.return_value = [0.2] * 512
-    mock_caption_image.return_value = "AI generated description of architectural chart."
     
     # 1. Generate test PDF and trigger upload
     pdf_data = create_test_pdf()

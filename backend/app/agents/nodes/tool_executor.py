@@ -8,9 +8,9 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from PIL import Image
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
+from app.agents.llm_factory import get_generation_llm
 from app.config import settings
 from app.models.db import Chunk, Document
 from app.agents.state import AgentState
@@ -24,6 +24,7 @@ def get_image_base64(image_path: str) -> str:
     with Image.open(image_path) as img:
         img.thumbnail((512, 512))
         buffered = io.BytesIO()
+        # Save as PNG
         img.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
@@ -32,9 +33,12 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     parsed_query = state.get("parsed_query") or {}
     figure_ref = parsed_query.get("figure_ref") or "Figure"
     
+    # 1. Fuzzy matching strategy for figure (Risk 3 mitigation)
+    # Extract number from figure_ref (e.g. "Figure 3" -> "3")
     num_match = re.search(r'\d+', figure_ref)
     num = num_match.group(0) if num_match else None
     
+    # Query all image chunks for the document(s)
     stmt = select(Chunk).where(Chunk.content_type == "image")
     if document_ids:
         stmt = stmt.where(Chunk.document_id.in_(document_ids))
@@ -46,12 +50,14 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     
     if img_chunks:
         if num:
+            # Step 1.1: Try exact match on image_caption containing the number
             for c in img_chunks:
                 caption = c.image_caption or ""
                 if f" {num}" in caption or f"fig {num}" in caption.lower() or f"figure {num}" in caption.lower():
                     target_chunk = c
                     break
                     
+            # Step 1.2: Try regex match: r'[Ff]ig(?:ure)?\.?\s*num'
             if not target_chunk:
                 pattern = re.compile(rf'[Ff]ig(?:ure)?\.?\s*{num}')
                 for c in img_chunks:
@@ -60,13 +66,16 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
                         target_chunk = c
                         break
                         
+            # Step 1.3: Fall back to N-th image chunk (1-indexed) by index
             if not target_chunk:
                 idx = int(num) - 1
                 if 0 <= idx < len(img_chunks):
                     target_chunk = img_chunks[idx]
         else:
+            # Default to first image chunk
             target_chunk = img_chunks[0]
             
+    # 1.4: If still no match, return available figures list
     if not target_chunk:
         captions_list = [f"- Page {c.page_number}: {c.image_caption or 'No caption'}" for c in img_chunks]
         captions_str = "\n".join(captions_list) if captions_list else "No figures extracted."
@@ -78,7 +87,10 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
             "confidence_score": 0.5
         }
         
+    # 2. Load and encode image
+    # Resolve absolute image path
     rel_path = target_chunk.image_path or ""
+    # Normalize paths: if absolute, keep as is; if relative, prepend data directory
     abs_image_path = rel_path if os.isabs(rel_path) else os.path.join(settings.data_dir, "images", os.path.basename(rel_path))
     
     try:
@@ -92,6 +104,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
             "confidence_score": 0.0
         }
         
+    # 3. Retrieve 3 closest text chunks by page number
     stmt_closest = (
         select(Chunk)
         .where(
@@ -111,6 +124,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
         [f"Page {c.page_number} ({c.section_title or 'General'}):\n{c.content_text or ''}" for c in closest_chunks]
     )
     
+    # Fetch document details
     doc = await db.get(Document, target_chunk.document_id)
     doc_title = doc.title if doc else "Document"
     
@@ -121,12 +135,9 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
         surrounding_text=surrounding_text
     )
     
-    llm = ChatOpenAI(
-        model=settings.openai_model_name,
-        openai_api_key=settings.openai_api_key,
-        temperature=0.0
-    )
-    
+    # 4. Invoke LLM with multimodal message
+    llm = get_generation_llm()
+
     content = [
         {"type": "text", "text": prompt},
         {
@@ -141,6 +152,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     response = await llm.ainvoke([msg])
     answer = response.content.strip()
     
+    # Build citation and figure ref
     citations = []
     for c in closest_chunks:
         citations.append({
@@ -173,6 +185,7 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
     parsed_query = state.get("parsed_query") or {}
     section_ref = parsed_query.get("section_ref") or "Section"
     
+    # Retrieve chunks matching section_ref
     stmt = select(Chunk).where(Chunk.section_title.ilike(f"%{section_ref}%"))
     if document_ids:
         stmt = stmt.where(Chunk.document_id.in_(document_ids))
@@ -187,6 +200,7 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
             "confidence_score": 0.5
         }
         
+    # Format chunks
     context_parts = []
     for i, c in enumerate(chunks):
         context_parts.append(f"[{i+1}] Page {c.page_number} ({c.section_title}): {c.content_text or ''}")
@@ -197,6 +211,7 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
         target_description=f"Section: {section_ref}"
     )
     
+    # Resolve titles
     all_doc_ids = list(set([c.document_id for c in chunks]))
     doc_titles = {}
     if all_doc_ids:
@@ -205,11 +220,7 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
         for d_id, d_title, d_fname in res_titles.all():
             doc_titles[d_id] = d_title or d_fname
             
-    llm = ChatOpenAI(
-        model=settings.openai_model_name,
-        openai_api_key=settings.openai_api_key,
-        temperature=0.0
-    )
+    llm = get_generation_llm()
     response = await llm.ainvoke(prompt)
     answer = response.content.strip()
     
@@ -242,12 +253,15 @@ async def tool_executor_node(state: AgentState, config: dict) -> dict:
     
     try:
         if parsed_query.get("figure_ref"):
+            # Run explain figure action
             action_res = await explain_figure_action(state, db, document_ids)
             action_name = "explain_figure"
         elif parsed_query.get("section_ref"):
+            # Run summarize section action
             action_res = await summarize_section_action(state, db, document_ids)
             action_name = "summarize_section"
         else:
+            # Default fallback: summarize section or explain first figure
             action_res = await explain_figure_action(state, db, document_ids)
             action_name = "explain_figure_fallback"
             

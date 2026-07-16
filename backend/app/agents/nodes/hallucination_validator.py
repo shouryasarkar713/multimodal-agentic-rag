@@ -1,8 +1,8 @@
 import json
 import time
 import logging
-from langchain_openai import ChatOpenAI
 
+from app.agents.llm_factory import get_generation_llm
 from app.config import settings
 from app.agents.state import AgentState
 from app.agents.prompts import HALLUCINATION_VALIDATION_PROMPT
@@ -36,11 +36,7 @@ async def hallucination_validator_node(state: AgentState) -> dict:
     )
     
     try:
-        llm = ChatOpenAI(
-            model=settings.openai_model_name,
-            openai_api_key=settings.openai_api_key,
-            temperature=0.0
-        )
+        llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
         

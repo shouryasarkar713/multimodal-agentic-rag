@@ -3,9 +3,8 @@ import os
 import time
 import logging
 from typing import List, Dict, Any
-from langchain_openai import ChatOpenAI
 
-from app.config import settings
+from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import GENERATION_PROMPT
 
@@ -59,11 +58,7 @@ async def generator_node(state: AgentState) -> dict:
         )
         
     try:
-        llm = ChatOpenAI(
-            model=settings.openai_model_name,
-            openai_api_key=settings.openai_api_key,
-            temperature=0.0
-        )
+        llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         answer = response.content.strip()
         
@@ -84,6 +79,7 @@ async def generator_node(state: AgentState) -> dict:
                         "chunk_id": chunk_id,
                         "document_id": chunk["document_id"],
                         "document_title": chunk.get("document_title"),
+                        "filename": chunk.get("filename"),
                         "page_number": chunk["page_number"],
                         "section_title": chunk.get("section_title"),
                         "excerpt": (chunk.get("content_text") or chunk.get("image_caption") or "")[:200],

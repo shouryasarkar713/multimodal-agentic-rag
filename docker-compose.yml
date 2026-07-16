@@ -14,7 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d research_assistant"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d research_assistant" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -31,6 +31,16 @@ services:
     volumes:
       - ./backend:/workspace
       - ./data:/data
+    environment:
+      - EVAL_OPENAI_API_KEY=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
+      - EVAL_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
+      - EVAL_OPENAI_MODEL_NAME=mistralai/mistral-medium-3.5-128b
+      - LLM_OPENAI_API_KEY=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
+      - LLM_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
+      - LLM_OPENAI_MODEL_NAME=mistralai/mistral-medium-3.5-128b
+      - EMBEDDING_OPENAI_API_KEY=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
+      - EMBEDDING_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
+      - EMBEDDING_OPENAI_MODEL_NAME=nvidia/nv-embed-v1
     env_file:
       - .env
     depends_on:

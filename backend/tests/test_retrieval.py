@@ -13,9 +13,9 @@ from app.models.db import Document, Chunk, Session
 @pytest.mark.asyncio
 @patch("app.services.retrieval.get_cross_encoder")
 @patch("app.services.retrieval.get_clip_model")
-@patch("app.services.embedding.OpenAIEmbeddings")
+@patch("app.services.retrieval.get_embeddings_model")
 async def test_retrieve_endpoint(
-    mock_openai_embeddings_class,
+    mock_get_embeddings_model,
     mock_get_clip_model,
     mock_get_cross_encoder,
     client: AsyncClient,
@@ -23,16 +23,20 @@ async def test_retrieve_endpoint(
 ):
     """Test hybrid search, multimodal CLIP matching, and re-ranking on the retrieve endpoint."""
     # 1. Setup Mocks
+    # Mock Embeddings Model
     mock_embeddings_inst = MagicMock()
     mock_embeddings_inst.aembed_query = AsyncMock(return_value=[0.1] * 1536)
-    mock_openai_embeddings_class.return_value = mock_embeddings_inst
+    mock_get_embeddings_model.return_value = mock_embeddings_inst
     
+    # Mock CLIP Model
     mock_clip_model = MagicMock()
     mock_clip_features = torch.ones((1, 512))
     mock_clip_model.encode_text.return_value = mock_clip_features
     mock_get_clip_model.return_value = (mock_clip_model, MagicMock())
     
+    # Mock CrossEncoder
     mock_ce = MagicMock()
+    # Mock scores for 3 candidates
     mock_ce.predict.return_value = [0.95, 0.45, 0.85]
     mock_get_cross_encoder.return_value = mock_ce
     
@@ -49,6 +53,7 @@ async def test_retrieve_endpoint(
     )
     db_session.add(doc)
     
+    # Text chunk
     chunk_text = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -59,6 +64,7 @@ async def test_retrieve_endpoint(
         section_title="Abstract",
         text_embedding=[0.1] * 1536
     )
+    # Table chunk
     chunk_table = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -70,6 +76,7 @@ async def test_retrieve_endpoint(
         section_title="Results",
         text_embedding=[0.1] * 1536
     )
+    # Image chunk
     chunk_image = Chunk(
         id=uuid.uuid4(),
         document_id=doc_id,
@@ -106,6 +113,9 @@ async def test_retrieve_endpoint(
     assert "chunks" in res_data
     chunks = res_data["chunks"]
     
+    # Assert we got the chunks and they were re-ranked based on CrossEncoder mock scores
+    # Scores returned: text=0.95, table=0.45, image=0.85
+    # Sorted order should be: text (0.95), image (0.85), table (0.45)
     assert len(chunks) == 3
     assert chunks[0]["content_type"] == "text"
     assert chunks[1]["content_type"] == "image"

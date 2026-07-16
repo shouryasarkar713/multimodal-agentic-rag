@@ -9,14 +9,14 @@ from app.agents.nodes.intent_router import route_by_intent
 from app.agents.graph import compiled_graph
 
 @pytest.mark.asyncio
-@patch("app.agents.nodes.query_understanding.ChatOpenAI")
-async def test_query_understanding_parsing(mock_chat_openai_class):
+@patch("app.agents.nodes.query_understanding.get_generation_llm")
+async def test_query_understanding_parsing(mock_get_llm):
     """Test that query_understanding node correctly parses structured JSON response from LLM."""
     mock_llm_inst = MagicMock()
     mock_llm_inst.ainvoke = AsyncMock(return_value=MagicMock(
         content='{"intent": "compare", "query_text": "transformer vs resnet", "target_papers": ["Paper A", "Paper B"], "figure_ref": null, "section_ref": "Section 4.1", "retrieval_types": ["text", "table"]}'
     ))
-    mock_chat_openai_class.return_value = mock_llm_inst
+    mock_get_llm.return_value = mock_llm_inst
     
     state = AgentState(
         user_query="compare transformer vs resnet in Section 4.1",
@@ -26,7 +26,6 @@ async def test_query_understanding_parsing(mock_chat_openai_class):
         parsed_query=None,
         retrieval_types=[],
         retrieved_chunks=[],
-        formatted_context="",
         retrieval_attempt=0,
         rewritten_query=None,
         sub_queries=[],
@@ -64,15 +63,15 @@ def test_intent_routing():
 @patch("app.agents.nodes.retrieval_orchestrator.get_embeddings_model")
 @patch("app.agents.nodes.retrieval_orchestrator.get_cross_encoder")
 @patch("app.agents.nodes.finalize.AsyncSession")
-@patch("app.agents.nodes.generator.ChatOpenAI")
-@patch("app.agents.nodes.query_rewriter.ChatOpenAI")
-@patch("app.agents.nodes.evidence_grader.ChatOpenAI")
-@patch("app.agents.nodes.query_understanding.ChatOpenAI")
+@patch("app.agents.nodes.generator.get_generation_llm")
+@patch("app.agents.nodes.query_rewriter.get_generation_llm")
+@patch("app.agents.nodes.evidence_grader.get_generation_llm")
+@patch("app.agents.nodes.query_understanding.get_generation_llm")
 async def test_agent_retry_loop_capping(
-    mock_qu_llm_class,
-    mock_eg_llm_class,
-    mock_qr_llm_class,
-    mock_gen_llm_class,
+    mock_qu_llm_getter,
+    mock_eg_llm_getter,
+    mock_qr_llm_getter,
+    mock_gen_llm_getter,
     mock_session_class,
     mock_get_cross_encoder,
     mock_get_embeddings_model
@@ -93,28 +92,28 @@ async def test_agent_retry_loop_capping(
     mock_qu_llm.ainvoke = AsyncMock(return_value=MagicMock(
         content='{"intent": "paper_qa", "query_text": "transformer", "target_papers": [], "figure_ref": null, "section_ref": null, "retrieval_types": ["text"]}'
     ))
-    mock_qu_llm_class.return_value = mock_qu_llm
+    mock_qu_llm_getter.return_value = mock_qu_llm
     
     # Evidence grader mock: return low scores (e.g. 3.0, 1.0) to force retry
     mock_eg_llm = MagicMock()
     mock_eg_llm.ainvoke = AsyncMock(return_value=MagicMock(
         content='[{"chunk_index": 0, "score": 3.0, "reason": "ok"}, {"chunk_index": 1, "score": 1.0, "reason": "poor"}]'
     ))
-    mock_eg_llm_class.return_value = mock_eg_llm
+    mock_eg_llm_getter.return_value = mock_eg_llm
     
     # Query rewriter mock
     mock_qr_llm = MagicMock()
     mock_qr_llm.ainvoke = AsyncMock(return_value=MagicMock(
         content="new query search keywords"
     ))
-    mock_qr_llm_class.return_value = mock_qr_llm
+    mock_qr_llm_getter.return_value = mock_qr_llm
     
     # Generator mock
     mock_gen_llm = MagicMock()
     mock_gen_llm.ainvoke = AsyncMock(return_value=MagicMock(
         content="This is the final answer [1]."
     ))
-    mock_gen_llm_class.return_value = mock_gen_llm
+    mock_gen_llm_getter.return_value = mock_gen_llm
     
     # 3. Create dummy database session
     mock_db = MagicMock(spec=AsyncSession)

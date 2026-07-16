@@ -1,11 +1,12 @@
 import logging
 import uuid
 import traceback
+import asyncio
 from app.dependencies import async_session_factory
 from app.models.db import Document
 from app.services.parsing import extract_metadata, extract_pages, extract_tables, extract_figures
 from app.services.chunking import chunk_text, chunk_tables, create_image_chunks
-from app.services.embedding import embed_text_batch, embed_image, caption_image
+from app.services.embedding import embed_text_batch, aembed_text_batch, embed_image
 
 async def run_ingestion_pipeline(document_id: uuid.UUID):
     """Orchestrate the 10-step document ingestion pipeline."""
@@ -73,10 +74,10 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
                     text_table_indices.append(idx)
                     
             if embed_texts:
-                embeddings = embed_text_batch(embed_texts)
+                embeddings = await aembed_text_batch(embed_texts, max_concurrent=3)
                 for i, emb in zip(text_table_indices, embeddings):
                     all_chunks[i].text_embedding = emb
-                    
+
             # Compute image embeddings (CLIP Vision + OpenAI text embedding of caption)
             image_caption_texts = []
             image_indices = []
@@ -87,7 +88,7 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
                     image_indices.append(idx)
                     
             if image_caption_texts:
-                caption_embeddings = embed_text_batch(image_caption_texts)
+                caption_embeddings = await aembed_text_batch(image_caption_texts, max_concurrent=2)
                 for i, emb in zip(image_indices, caption_embeddings):
                     all_chunks[i].text_embedding = emb
                     

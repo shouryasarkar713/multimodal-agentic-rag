@@ -2,9 +2,8 @@ import json
 import time
 import logging
 from typing import List, Dict, Any
-from langchain_openai import ChatOpenAI
 
-from app.config import settings
+from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import EVIDENCE_GRADING_PROMPT
 
@@ -57,11 +56,7 @@ async def evidence_grader_node(state: AgentState) -> dict:
     )
     
     try:
-        llm = ChatOpenAI(
-            model=settings.openai_model_name,
-            openai_api_key=settings.openai_api_key,
-            temperature=0.0
-        )
+        llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
         
@@ -72,10 +67,10 @@ async def evidence_grader_node(state: AgentState) -> dict:
             content = content[:-3]
         content = content.strip()
         
-        parsed_json = json.loads(content)
+        parsed_scores = json.loads(content)
         
         # Build score lookup map
-        scores_map = {item["chunk_index"]: float(item["score"]) for item in parsed_json}
+        scores_map = {item["chunk_index"]: float(item["score"]) for item in parsed_scores}
         
         # Assign scores to chunks_to_grade in order
         evidence_scores = []
