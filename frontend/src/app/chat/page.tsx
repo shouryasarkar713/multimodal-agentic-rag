@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles, Filter, CheckSquare, Square } from 'lucide-react';
+import { Send, Loader2, Sparkles, Filter, CheckSquare, Square, FileText } from 'lucide-react';
 import { useChatContext } from '../../context/ChatContext';
 import { useDocuments } from '../../hooks/useDocuments';
 import { ChatMessage } from '../../components/ChatMessage';
@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Suggestion Prompts
   const suggestions = [
     'Compare the BLEU scores between the models.',
     'Explain Figure 1 in the Transformer paper.',
@@ -48,16 +49,27 @@ export default function ChatPage() {
     });
   };
 
+  // Scroll to bottom helper
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, sendingMessage]);
 
+  // Handle auto-submit query from document library figures
+  useEffect(() => {
+    const autoQuery = sessionStorage.getItem('auto_submit_query');
+    if (autoQuery) {
+      sessionStorage.removeItem('auto_submit_query');
+      submitQuery(autoQuery);
+    }
+  }, [submitQuery]);
+
   const readyDocuments = documents.filter((d) => d.status === 'ready');
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-100 relative">
+      {/* Upper Context Header */}
       <div className="h-16 px-6 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between z-10 shrink-0">
         <div className="min-w-0">
           <h2 className="font-extrabold text-sm text-slate-200 uppercase tracking-wider truncate">
@@ -68,6 +80,7 @@ export default function ChatPage() {
           </p>
         </div>
 
+        {/* Dynamic Document Scoper */}
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -136,6 +149,7 @@ export default function ChatPage() {
         </div>
       </div>
 
+      {/* Main Conversation Viewer Pane */}
       <div className="flex-1 overflow-y-auto select-text scrollbar-thin">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-6 text-center select-none">
@@ -155,6 +169,7 @@ export default function ChatPage() {
               <ChatMessage key={msg.id} message={msg} />
             ))}
             
+            {/* Typing Loader State */}
             {sendingMessage && (
               <div className="flex gap-4 py-6 px-4 md:px-6 bg-indigo-950/5 border-b border-indigo-950/10 justify-start select-none">
                 <div className="w-8 h-8 rounded-xl bg-indigo-600 border border-indigo-500 text-white flex items-center justify-center shrink-0">
@@ -164,6 +179,7 @@ export default function ChatPage() {
                   <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider animate-pulse">
                     Copilot is planning and reasoning...
                   </span>
+                  {/* Pulsing indicator dots */}
                   <div className="flex items-center gap-1 mt-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -177,8 +193,10 @@ export default function ChatPage() {
         )}
       </div>
 
+      {/* Suggestion Prompt & Input Area */}
       <div className="p-4 md:p-6 border-t border-slate-800/80 bg-slate-900/20 shrink-0 select-none">
         <div className="max-w-4xl mx-auto flex flex-col gap-4">
+          {/* suggestion pills */}
           {messages.length === 0 && (
             <div className="flex flex-wrap gap-2.5">
               {suggestions.map((s, idx) => (
@@ -193,6 +211,7 @@ export default function ChatPage() {
             </div>
           )}
 
+          {/* Form input */}
           <form onSubmit={handleSend} className="relative">
             <input
               type="text"
