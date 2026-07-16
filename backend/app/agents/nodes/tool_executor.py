@@ -8,13 +8,13 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from PIL import Image
-from langchain_core.messages import HumanMessage
 
 from app.agents.llm_factory import get_generation_llm
 from app.config import settings
 from app.models.db import Chunk, Document
 from app.agents.state import AgentState
 from app.agents.prompts import EXPLAIN_FIGURE_PROMPT, SUMMARIZATION_PROMPT
+from langchain_core.messages import HumanMessage
 
 def get_image_base64(image_path: str) -> str:
     """Load image from disk, resize to max 512px on longest edge, and base64 encode."""
