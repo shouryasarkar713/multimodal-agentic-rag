@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, X, ZoomIn, Info } from 'lucide-react';
+import { Eye, X, ZoomIn, Info, Sparkles, Loader2 } from 'lucide-react';
 import { FigureRef } from '../lib/types';
+import { useChatContext } from '../context/ChatContext';
 
 interface FigureViewerProps {
   figure: FigureRef;
@@ -8,7 +9,9 @@ interface FigureViewerProps {
 
 export function FigureViewer({ figure }: FigureViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { submitQuery, sendingMessage } = useChatContext();
 
+  // Re-base the image path if it starts with /api
   const serverBaseUrl = process.env.NEXT_PUBLIC_API_URL
     ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '')
     : 'http://localhost:8000';
@@ -17,9 +20,17 @@ export function FigureViewer({ figure }: FigureViewerProps) {
     ? figure.image_path
     : `${serverBaseUrl}${figure.image_path}`;
 
+  const handleExplain = async () => {
+    setIsOpen(false); // Close lightbox
+    // Submit the explain figure query
+    await submitQuery(`explain figure: ${figure.caption || 'figure'}`);
+  };
+
   return (
     <>
+      {/* Inline Preview Figure Card */}
       <div className="flex flex-col rounded-xl border border-slate-800 bg-slate-950 overflow-hidden w-64 shrink-0 transition-all duration-200 hover:border-indigo-500/50 hover:shadow-lg">
+        {/* Clickable Image Container */}
         <div
           onClick={() => setIsOpen(true)}
           className="relative aspect-video bg-slate-900 overflow-hidden cursor-pointer group"
@@ -36,6 +47,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
           </div>
         </div>
         
+        {/* Caption Info */}
         <div className="p-3 border-t border-slate-900 flex flex-col gap-1 select-none">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] font-extrabold text-slate-300 flex items-center gap-1">
@@ -51,6 +63,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
         </div>
       </div>
 
+      {/* Lightbox Modal */}
       {isOpen && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <button
@@ -62,6 +75,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
           </button>
           
           <div className="w-full max-w-4xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            {/* Center Image */}
             <div className="relative aspect-video rounded-2xl bg-slate-900 overflow-hidden border border-slate-800 flex items-center justify-center">
               <img
                 src={imageUrl}
@@ -70,8 +84,9 @@ export function FigureViewer({ figure }: FigureViewerProps) {
               />
             </div>
             
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl max-w-2xl mx-auto">
-              <div className="flex items-center justify-between gap-3 mb-1.5">
+            {/* Lightbox Caption */}
+            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl max-w-2xl mx-auto flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <h4 className="font-extrabold text-xs text-slate-200">
                   FIGURE REFERENCE
                 </h4>
@@ -82,6 +97,24 @@ export function FigureViewer({ figure }: FigureViewerProps) {
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">
                 {figure.caption || 'No caption available.'}
               </p>
+              
+              <button
+                onClick={handleExplain}
+                disabled={sendingMessage}
+                className="mt-1 w-full py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white disabled:text-slate-500 font-extrabold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/10"
+              >
+                {sendingMessage ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Analyzing figure...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                    Explain this figure
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
