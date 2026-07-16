@@ -27,8 +27,9 @@ class MessageItem(BaseModel):
     role: str
     content: str
     citations: Optional[List[CitationItem]] = None
-    figure_refs: Optional[List[str]] = None  # List of figure image URLs
+    figure_refs: Optional[List[Any]] = None  # List of figure reference objects
     confidence: Optional[float] = None
+    trace_id: Optional[uuid.UUID] = None
     created_at: datetime
 
 class MessageListResponse(BaseModel):
