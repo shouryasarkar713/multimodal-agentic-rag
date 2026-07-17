@@ -1,35 +1,30 @@
 import React from 'react';
-import { ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 
 interface ConfidenceBadgeProps {
   score: number;
 }
 
 export function ConfidenceBadge({ score }: ConfidenceBadgeProps) {
+  // Clamp score
   const clamped = Math.max(0, Math.min(1, score));
   const pct = Math.round(clamped * 100);
 
-  let colorClass = '';
-  let Icon = Shield;
+  let styleClass = '';
   let text = '';
 
   if (clamped >= 0.85) {
-    colorClass = 'bg-green-500/10 text-green-400 border-green-500/20';
-    Icon = ShieldCheck;
-    text = 'High Confidence';
+    styleClass = 'bg-primary/25 text-primary border-primary';
+    text = 'HIGH CONF';
   } else if (clamped >= 0.6) {
-    colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-    Icon = Shield;
-    text = 'Medium Confidence';
+    styleClass = 'bg-primary/15 text-primary/90 border-primary/50';
+    text = 'MED CONF';
   } else {
-    colorClass = 'bg-red-500/10 text-red-400 border-red-500/20';
-    Icon = ShieldAlert;
-    text = 'Low Confidence';
+    styleClass = 'bg-primary/5 text-primary/60 border-primary/20 border-dashed';
+    text = 'LOW CONF';
   }
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold select-none ${colorClass}`}>
-      <Icon className="w-3.5 h-3.5" />
+    <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border text-[9px] font-bold font-tech-mono select-none uppercase tracking-wider ${styleClass}`}>
       <span>{text}: {pct}%</span>
     </div>
   );
