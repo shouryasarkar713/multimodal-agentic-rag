@@ -10,13 +10,9 @@
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  background: #0b0f19;
   min-height: 100vh;
-  font-family: var(--font-inter, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
 }
 
 /* Custom Scrollbar for premium dark appearance */
@@ -61,30 +57,70 @@ body {
   animation: progress-animation 15s cubic-bezier(0.1, 0.8, 0.1, 1) infinite;
 }
 
-/* Glassmorphic & Neon Utilities from Stitch Design System */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+/* Scholarly Desk Theme Layout Utilities */
+.scholarly-panel {
+  background: #141a29;
+  border: 1px solid #2a354c;
 }
 
-.glass-card {
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+.scholarly-card {
+  background: #141a29;
+  border: 1px solid #2a354c;
 }
 
-.neon-glow {
-  box-shadow: 0 0 25px rgba(99, 102, 241, 0.15);
+.scholarly-border-t {
+  border-top: 1px solid #2a354c;
 }
 
-.neon-glow-intense {
-  box-shadow: 0 0 35px rgba(99, 102, 241, 0.35);
+.scholarly-border-b {
+  border-bottom: 1px solid #2a354c;
 }
 
-.neon-text {
-  text-shadow: 0 0 10px rgba(192, 193, 255, 0.4);
+.scholarly-border-l {
+  border-left: 1px solid #2a354c;
+}
+
+.scholarly-border-r {
+  border-right: 1px solid #2a354c;
+}
+
+/* Typography styles */
+.font-editorial-serif {
+  font-family: var(--font-eb-garamond), serif;
+}
+
+.font-grotesk-sans {
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+.font-tech-mono {
+  font-family: var(--font-jetbrains-mono), monospace;
+}
+
+/* Dense table settings */
+.dense-table th {
+  background-color: #070a12;
+  color: #94a3b8;
+  font-family: var(--font-space-grotesk), sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  padding: 8px 12px;
+  border-bottom: 2px solid #2a354c;
+}
+
+.dense-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #2a354c;
+}
+
+.dense-table tr:hover {
+  background-color: #192235;
+}
+
+/* Custom layout scrollbar override */
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 2px;
 }
