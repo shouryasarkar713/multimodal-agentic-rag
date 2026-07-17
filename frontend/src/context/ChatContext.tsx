@@ -78,23 +78,29 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Create a new session
   const createNewSession = useCallback(async (title?: string, initialDocIds?: string[]) => {
     try {
+      console.log('[DEBUG] createNewSession CALLED with title:', title, 'initialDocIds:', initialDocIds);
       setError(null);
       const newSession = await api.createSession(title);
+      console.log('[DEBUG] api.createSession returned session:', newSession);
       setSessions((prev) => [newSession, ...prev]);
       
       // Save initial document scope to localStorage for this new session ID
       if (initialDocIds && initialDocIds.length > 0) {
+        console.log('[DEBUG] Writing scope to localStorage for key:', `session_docs_${newSession.id}`, 'value:', initialDocIds);
         localStorage.setItem(`session_docs_${newSession.id}`, JSON.stringify(initialDocIds));
         setSelectedDocumentIdsState(initialDocIds);
       } else {
+        console.log('[DEBUG] Removing scope from localStorage for key:', `session_docs_${newSession.id}`);
         localStorage.removeItem(`session_docs_${newSession.id}`);
         setSelectedDocumentIdsState([]);
       }
       
+      console.log('[DEBUG] Setting activeSessionId to:', newSession.id);
       setActiveSessionId(newSession.id);
       setMessages([]);
       return newSession.id;
     } catch (err: any) {
+      console.error('[DEBUG] createNewSession failed:', err);
       setError(err.message || 'Failed to create new session');
       return null;
     }
