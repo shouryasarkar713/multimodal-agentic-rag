@@ -189,18 +189,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Load stored document selection scope when activeSessionId changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      console.log('[DEBUG] activeSessionId changed to:', activeSessionId);
       if (activeSessionId) {
         const stored = localStorage.getItem(`session_docs_${activeSessionId}`);
+        console.log('[DEBUG] stored value from localStorage:', stored);
         if (stored) {
           try {
-            setSelectedDocumentIdsState(JSON.parse(stored));
+            const parsed = JSON.parse(stored);
+            console.log('[DEBUG] successfully parsed scope:', parsed);
+            setSelectedDocumentIdsState(parsed);
           } catch (e) {
+            console.error('[DEBUG] error parsing stored scope:', e);
             setSelectedDocumentIdsState([]);
           }
         } else {
+          console.log('[DEBUG] no stored scope found, setting to []');
           setSelectedDocumentIdsState([]);
         }
       } else {
+        console.log('[DEBUG] activeSessionId is null/undefined, setting to []');
         setSelectedDocumentIdsState([]);
       }
     }
