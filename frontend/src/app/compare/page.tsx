@@ -128,30 +128,30 @@ export default function ComparePage() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 font-sans">
       {/* Header */}
-      <div>
+      <div className="border-b border-neutral-border pb-4">
         <div className="flex items-center gap-2">
-          <Columns className="w-5 h-5 text-indigo-400" />
-          <h1 className="font-extrabold text-2xl text-slate-100 tracking-tight">
+          <Columns className="w-5 h-5 text-primary" />
+          <h1 className="font-bold text-2xl text-slate-100 font-editorial-serif tracking-tight">
             Side-by-Side Comparison Workspace
           </h1>
         </div>
-        <p className="text-xs text-slate-400 mt-1 font-semibold">
-          Select two papers, query comparative variables, and inspect results section-by-section.
+        <p className="text-xs text-slate-455 mt-1 font-tech-mono uppercase tracking-wide">
+          /cross_paper_variable_analysis
         </p>
       </div>
 
       {/* Comparison Controller Form */}
-      <form onSubmit={handleCompareSubmit} className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex flex-col gap-4">
+      <form onSubmit={handleCompareSubmit} className="p-5 rounded-sm border border-neutral-border bg-surface flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Dropdown Paper A */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Select Paper A</label>
+            <label className="text-[9px] uppercase font-bold text-slate-500 font-tech-mono tracking-widest">Select Paper A</label>
             <select
               value={docAId}
               onChange={(e) => setDocAId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500/80 cursor-pointer"
+              className="w-full px-3 py-2 bg-background border border-neutral-border rounded-sm text-xs font-semibold text-slate-200 focus:outline-none focus:border-primary cursor-pointer font-tech-mono"
             >
               <option value="">-- Choose Paper A --</option>
               {readyDocuments.map((doc) => (
@@ -164,11 +164,11 @@ export default function ComparePage() {
 
           {/* Dropdown Paper B */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Select Paper B</label>
+            <label className="text-[9px] uppercase font-bold text-slate-500 font-tech-mono tracking-widest">Select Paper B</label>
             <select
               value={docBId}
               onChange={(e) => setDocBId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 focus:outline-none focus:border-indigo-500/80 cursor-pointer"
+              className="w-full px-3 py-2 bg-background border border-neutral-border rounded-sm text-xs font-semibold text-slate-200 focus:outline-none focus:border-primary cursor-pointer font-tech-mono"
             >
               <option value="">-- Choose Paper B --</option>
               {readyDocuments.map((doc) => (
@@ -182,20 +182,20 @@ export default function ComparePage() {
 
         {/* Comparison Query Prompt Input */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Comparison Topic / Question</label>
+          <label className="text-[9px] uppercase font-bold text-slate-500 font-tech-mono tracking-widest">Comparison Topic / Question</label>
           <div className="flex gap-3">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g. Compare the training architectures, baseline dataset splits, or benchmark accuracy."
-              className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80"
+              className="flex-1 px-4 py-2.5 bg-background border border-neutral-border rounded-sm text-xs font-semibold text-slate-200 placeholder-slate-650 focus:outline-none focus:border-primary font-tech-mono"
               disabled={comparing}
             />
             <button
               type="submit"
               disabled={comparing || !docAId || !docBId || !query.trim()}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white disabled:text-slate-600 text-xs font-extrabold rounded-xl transition-all duration-150 shadow-lg shadow-indigo-650/20 disabled:shadow-none flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary disabled:text-slate-770 disabled:border-neutral-border/20 text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-all duration-150 flex items-center gap-1.5"
             >
               {comparing ? (
                 <>
@@ -212,7 +212,7 @@ export default function ComparePage() {
 
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold rounded-lg">
+          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-bold rounded-sm font-tech-mono uppercase tracking-wider">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -222,8 +222,8 @@ export default function ComparePage() {
       {/* Comparison Grid Results */}
       {comparing ? (
         <div className="flex flex-col items-center justify-center p-16 select-none">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mb-3" />
-          <p className="text-xs font-bold text-slate-400 animate-pulse uppercase tracking-wider">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
+          <p className="text-xs font-bold text-slate-500 animate-pulse uppercase tracking-widest font-tech-mono">
             Decomposing and running multi-hop agent retrieval...
           </p>
         </div>
@@ -241,17 +241,17 @@ export default function ComparePage() {
           />
           {/* Continue in Chat Button */}
           {lastSessionId && comparativeAnswer && (
-            <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-950/10 flex items-center justify-between">
+            <div className="p-4 rounded-sm border border-neutral-border bg-surface flex items-center justify-between font-sans">
               <div>
-                <p className="text-xs font-bold text-indigo-400">Comparison Complete</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Continue the conversation with both papers in scope</p>
+                <p className="text-xs font-bold text-primary font-tech-mono uppercase tracking-wider">Comparison Complete</p>
+                <p className="text-[10px] text-slate-550 mt-0.5 font-grotesk-sans">Continue the conversation with both papers in scope</p>
               </div>
               <button
                 onClick={() => router.push(`/chat?session=${lastSessionId}`)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-indigo-600/20"
+                className="px-4 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-colors flex items-center gap-1.5"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
-                <ArrowRight className="w-3.5 h-3.5" />
+                <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                <ArrowRight className="w-3.5 h-3.5 text-primary" />
                 <span>Continue in Chat</span>
               </button>
             </div>
