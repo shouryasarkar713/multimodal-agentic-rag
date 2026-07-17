@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, HelpCircle } from 'lucide-react';
+import { FileText, Compare, AlertCircle, HelpCircle } from 'lucide-react';
 import { Document, Citation } from '../lib/types';
 
 interface ComparisonTableProps {
@@ -25,9 +25,53 @@ export function ComparisonTable({
 }: ComparisonTableProps) {
   if (!paperA || !paperB) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 border border-neutral-border rounded-sm bg-surface text-slate-500 font-semibold select-none text-center font-tech-mono uppercase tracking-wider text-[10px]">
-        <HelpCircle className="w-8 h-8 mb-3 text-slate-655" />
-        <p className="max-w-md leading-relaxed">Select two documents from the selectors above to open the comparative workspace.</p>
+      <div className="w-full flex flex-col gap-6 font-sans">
+        {/* Side-by-Side Metadata Headers (Skeleton) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-4 rounded-sm border border-dashed border-neutral-border/30 bg-surface/30 flex flex-col gap-2 min-h-[100px] justify-center items-center text-center">
+            <span className="text-[9px] uppercase font-bold text-slate-500 font-tech-mono tracking-widest">
+              Paper A Context
+            </span>
+            <p className="text-[10px] text-slate-600 font-tech-mono italic">
+              [ Awaiting Paper A Selection ]
+            </p>
+          </div>
+
+          <div className="p-4 rounded-sm border border-dashed border-neutral-border/30 bg-surface/30 flex flex-col gap-2 min-h-[100px] justify-center items-center text-center">
+            <span className="text-[9px] uppercase font-bold text-slate-500 font-tech-mono tracking-widest">
+              Paper B Context
+            </span>
+            <p className="text-[10px] text-slate-600 font-tech-mono italic">
+              [ Awaiting Paper B Selection ]
+            </p>
+          </div>
+        </div>
+
+        {/* Side-by-Side Extracted Evidence Panel (Skeleton columns) */}
+        <div className="flex flex-col gap-3">
+          <span className="text-[9px] uppercase font-bold text-slate-600 font-tech-mono tracking-widest pl-1">
+            Comparative Evidence Columns
+          </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[300px]">
+            <div className="border border-neutral-border/20 bg-surface/10 rounded-sm p-6 flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] text-slate-600 font-tech-mono uppercase tracking-wider">
+                Evidence Left Rail
+              </span>
+              <p className="text-[9px] text-slate-700 font-tech-mono mt-1">
+                Select documents & query to stream citations.
+              </p>
+            </div>
+            
+            <div className="border border-neutral-border/20 bg-surface/10 rounded-sm p-6 flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] text-slate-600 font-tech-mono uppercase tracking-wider">
+                Evidence Right Rail
+              </span>
+              <p className="text-[9px] text-slate-700 font-tech-mono mt-1">
+                Select documents & query to stream citations.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
