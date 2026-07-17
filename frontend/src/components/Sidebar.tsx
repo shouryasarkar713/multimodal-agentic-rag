@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Home, FileText, MessageSquare, BarChart2, Plus, Trash2 } from 'lucide-react';
 import { Session } from '../lib/types';
 
@@ -8,7 +8,7 @@ interface SidebarProps {
   sessions: Session[];
   activeSessionId: string | null;
   setActiveSessionId: (id: string) => void;
-  createNewSession: () => void;
+  createNewSession: (title?: string) => Promise<string | null>;
   deleteSession: (id: string) => void;
 }
 
@@ -19,6 +19,7 @@ export function Sidebar({
   createNewSession,
   deleteSession,
 }: SidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
 
   const navItems = [
@@ -30,6 +31,7 @@ export function Sidebar({
 
   return (
     <div className="w-60 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 text-slate-100 z-10">
+      {/* Brand Header */}
       <div className="p-5 border-b border-slate-800 flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30">
           R
@@ -44,6 +46,7 @@ export function Sidebar({
         </div>
       </div>
 
+      {/* Main Navigation Links */}
       <nav className="p-4 flex flex-col gap-1">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -69,12 +72,18 @@ export function Sidebar({
         })}
       </nav>
 
+      {/* Divider */}
       <div className="px-4 py-2 flex items-center justify-between border-t border-slate-800/60">
         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
           Conversations
         </span>
         <button
-          onClick={() => createNewSession()}
+          onClick={async () => {
+            await createNewSession();
+            if (pathname !== '/chat') {
+              router.push('/chat');
+            }
+          }}
           className="p-1 rounded-md text-slate-400 hover:bg-slate-800 hover:text-indigo-400 transition-colors"
           title="New Chat Session"
         >
@@ -82,6 +91,7 @@ export function Sidebar({
         </button>
       </div>
 
+      {/* Scrollable Sessions List */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-1 select-none scrollbar-thin">
         {sessions.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-600 font-medium">
@@ -96,7 +106,12 @@ export function Sidebar({
                   ? 'bg-slate-800 text-indigo-400 shadow-sm border border-slate-700/50'
                   : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border border-transparent'
               }`}
-              onClick={() => setActiveSessionId(s.id)}
+              onClick={() => {
+                setActiveSessionId(s.id);
+                if (pathname !== '/chat') {
+                  router.push('/chat');
+                }
+              }}
             >
               <span className="truncate pr-2 flex-1">{s.title}</span>
               <div className="flex items-center gap-2">
