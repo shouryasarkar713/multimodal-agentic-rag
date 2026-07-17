@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Columns, Loader2, Sparkles, AlertCircle, MessageSquare, ArrowRight } from 'lucide-react';
 import { useDocuments } from '../../hooks/useDocuments';
+import { useChatContext } from '../../context/ChatContext';
 import { api } from '../../lib/api';
 import { Citation } from '../../lib/types';
 import { ComparisonTable } from '../../components/ComparisonTable';
@@ -11,6 +12,7 @@ import { ComparisonTable } from '../../components/ComparisonTable';
 export default function ComparePage() {
   const router = useRouter();
   const { documents } = useDocuments();
+  const { createNewSession } = useChatContext();
   const [docAId, setDocAId] = useState<string>('');
   const [docBId, setDocBId] = useState<string>('');
   const [query, setQuery] = useState('');
@@ -47,18 +49,18 @@ export default function ComparePage() {
     setCitations([]);
 
     try {
-      // 1. Create a temporary chat session for this comparison
-      const session = await api.createSession(`Comparison: ${paperA?.filename.slice(0, 10)} vs ${paperB?.filename.slice(0, 10)}`);
-
-      // Save document scope to localStorage for this session so it persists when navigating to chat
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`session_docs_${session.id}`, JSON.stringify([docAId, docBId]));
+      // 1. Create a session using the ChatContext so it is automatically saved and appears in the sidebar session list (Bug 2)
+      const title = `Comparison: ${paperA?.filename.slice(0, 10)} vs ${paperB?.filename.slice(0, 10)}`;
+      const createdSessionId = await createNewSession(title, [docAId, docBId]);
+      if (!createdSessionId) {
+        throw new Error("Failed to initialize comparison session.");
       }
-      setLastSessionId(session.id);
+      setLastSessionId(createdSessionId);
+      
       // Prefix with comparative instruction to guide classifier intent
       const fullQuery = `Compare: ${query}`;
       const res = await api.chat({
-        session_id: session.id,
+        session_id: createdSessionId,
         query: fullQuery,
         document_ids: [docAId, docBId],
       });
@@ -209,7 +211,7 @@ export default function ComparePage() {
 
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-bold rounded-sm font-tech-mono uppercase tracking-wider">
+          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-bold rounded-sm font-tech-mono uppercase tracking-wider mt-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -245,7 +247,7 @@ export default function ComparePage() {
               </div>
               <button
                 onClick={() => router.push(`/chat?session=${lastSessionId}`)}
-                className="flex items-center gap-1 px-3 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-350 hover:text-primary transition-all duration-150 text-[10px] font-bold font-tech-mono uppercase tracking-wider rounded-sm"
+                className="flex items-center gap-1 px-3 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-355 hover:text-primary transition-all duration-150 text-[10px] font-bold font-tech-mono uppercase tracking-wider rounded-sm"
               >
                 Open in Chat Workspace <ArrowRight className="w-3.5 h-3.5 text-primary" />
               </button>
