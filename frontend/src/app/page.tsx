@@ -13,7 +13,7 @@ export default function Dashboard() {
   const { documents, uploading, error, setError, uploadFile, deleteDoc } = useDocuments();
   const { sessions, createNewSession, submitQuery, setSelectedDocumentIds } = useChatContext();
   const [quickQuery, setQuickQuery] = React.useState('');
-  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string } | null>(null);
+  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string; chunkId: string } | null>(null);
 
   const readyDocsCount = documents.filter((d) => d.status === 'ready').length;
   const totalPages = documents.reduce((sum, d) => sum + (d.total_pages || 0), 0);
@@ -30,7 +30,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number, documentId: string) => {
+  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number, documentId: string, chunkId: string) => {
     const serverBaseUrl = process.env.NEXT_PUBLIC_API_URL
       ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '')
       : 'http://localhost:8000';
@@ -38,7 +38,8 @@ export default function Dashboard() {
       url: imageUrl.startsWith('http') ? imageUrl : `${serverBaseUrl}${imageUrl}`,
       caption,
       page: pageNumber,
-      docId: documentId
+      docId: documentId,
+      chunkId
     });
   };
 
@@ -110,12 +111,12 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Quick Launcher */}
+          {/* Quick Launcher Zone */}
           <div className="bg-surface border border-neutral-border p-5 rounded-sm flex flex-col gap-4">
             <h3 className="font-bold text-[10px] uppercase text-slate-400 font-tech-mono tracking-widest border-b border-neutral-border/30 pb-2">
               Quick Launcher
             </h3>
-            <form onSubmit={handleQuickChatSubmit} className="relative font-sans">
+            <form onSubmit={handleQuickChatSubmit} className="relative">
               <input
                 type="text"
                 value={quickQuery}
@@ -172,7 +173,7 @@ export default function Dashboard() {
                 onClick={async () => {
                   const title = `Explain Figure (Page ${lightboxFig.page})`;
                   await createNewSession(title, [lightboxFig.docId]);
-                  sessionStorage.setItem('auto_submit_query', `explain figure: ${lightboxFig.caption || 'figure'}`);
+                  sessionStorage.setItem('auto_submit_query', `[EXPLAIN_FIGURE: ${lightboxFig.chunkId}] Explain the figure: ${lightboxFig.caption || 'figure'}`);
                   setLightboxFig(null);
                   router.push('/chat');
                 }}
