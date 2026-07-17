@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Send, Loader2, Sparkles, Filter, CheckSquare, Square, FileText } from 'lucide-react';
+import { Send, Loader2, Sparkles, Filter, CheckSquare, Square } from 'lucide-react';
 import { useChatContext } from '../../context/ChatContext';
 import { useDocuments } from '../../hooks/useDocuments';
 import { ChatMessage } from '../../components/ChatMessage';
@@ -81,14 +81,14 @@ export default function ChatPage() {
   const readyDocuments = documents.filter((d) => d.status === 'ready');
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100 relative">
+    <div className="flex flex-col h-screen bg-background text-slate-100 relative font-sans">
       {/* Upper Context Header */}
-      <div className="h-16 px-6 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between z-10 shrink-0">
+      <div className="h-16 px-6 border-b border-neutral-border bg-surface flex items-center justify-between z-10 shrink-0">
         <div className="min-w-0">
-          <h2 className="font-extrabold text-sm text-slate-200 uppercase tracking-wider truncate">
+          <h2 className="font-bold text-sm text-slate-200 font-editorial-serif uppercase tracking-wider truncate">
             Active Chat Session
           </h2>
-          <p className="text-[10px] text-slate-400 font-semibold truncate mt-0.5">
+          <p className="text-[9px] text-slate-500 font-tech-mono uppercase tracking-widest mt-0.5">
             {messages.length} messages in conversation
           </p>
         </div>
@@ -97,22 +97,22 @@ export default function ChatPage() {
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 text-xs font-bold text-slate-300 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-neutral-border bg-background hover:bg-surface text-[10px] font-bold font-tech-mono uppercase tracking-wider text-slate-350 transition-colors"
           >
-            <Filter className="w-3.5 h-3.5 text-indigo-400" />
+            <Filter className="w-3.5 h-3.5 text-primary" />
             <span>Scope: {selectedDocumentIds.length === 0 ? 'All Papers' : `${selectedDocumentIds.length} Paper(s)`}</span>
           </button>
           
           {dropdownOpen && (
             <>
               <div className="fixed inset-0 z-20" onClick={() => setDropdownOpen(false)} />
-              <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-800 bg-slate-900 shadow-2xl p-3 z-30 flex flex-col gap-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider pl-1">
+              <div className="absolute right-0 mt-2 w-64 rounded-sm border border-neutral-border bg-surface p-3 z-30 flex flex-col gap-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <span className="text-[9px] uppercase font-bold text-slate-550 font-tech-mono tracking-widest pl-1">
                   Scope Query to:
                 </span>
                 
                 {readyDocuments.length === 0 ? (
-                  <div className="text-[11px] text-slate-500 italic p-2">
+                  <div className="text-[10px] text-slate-600 font-tech-mono italic p-2">
                     No ready documents available.
                   </div>
                 ) : (
@@ -122,17 +122,17 @@ export default function ChatPage() {
                       return (
                         <div
                           key={doc.id}
-                          className="flex items-start gap-2.5 p-2 rounded-lg hover:bg-slate-800/60 cursor-pointer select-none"
+                          className="flex items-start gap-2.5 p-2 rounded-sm hover:bg-background cursor-pointer select-none"
                           onClick={() => toggleDocumentSelection(doc.id)}
                         >
-                          <div className="mt-0.5 text-indigo-400">
+                          <div className="mt-0.5 text-primary">
                             {isSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[11px] font-bold text-slate-200 truncate">
+                            <span className="text-[11px] font-bold text-slate-200 truncate font-editorial-serif">
                               {doc.title || doc.filename}
                             </span>
-                            <span className="text-[9px] text-slate-500 font-semibold truncate mt-0.5">
+                            <span className="text-[9px] text-slate-500 font-tech-mono truncate mt-0.5">
                               {doc.filename}
                             </span>
                           </div>
@@ -142,16 +142,16 @@ export default function ChatPage() {
                   </div>
                 )}
                 
-                <div className="border-t border-slate-800 pt-2.5 flex justify-between">
+                <div className="border-t border-neutral-border/30 pt-2 flex justify-between font-tech-mono text-[9px] uppercase tracking-wider font-bold">
                   <button
                     onClick={() => setSelectedDocumentIds([])}
-                    className="text-[9px] font-extrabold uppercase text-slate-500 hover:text-indigo-400 px-1 py-0.5"
+                    className="text-slate-500 hover:text-primary px-1.5 py-0.5 border border-neutral-border/20 bg-background rounded-sm"
                   >
                     Clear All
                   </button>
                   <button
                     onClick={() => setDropdownOpen(false)}
-                    className="text-[9px] font-extrabold uppercase text-indigo-400 hover:text-indigo-300 px-1 py-0.5"
+                    className="text-primary hover:text-primary-hover px-1.5 py-0.5 border border-primary/20 bg-background rounded-sm"
                   >
                     Done
                   </button>
@@ -166,13 +166,13 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto select-text scrollbar-thin">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center p-6 text-center select-none">
-            <div className="p-4 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-4 animate-bounce">
-              <Sparkles className="w-10 h-10" />
+            <div className="p-3 rounded-sm bg-background border border-primary/20 text-primary mb-4">
+              <Sparkles className="w-8 h-8" />
             </div>
-            <h3 className="font-extrabold text-lg text-slate-100 tracking-tight">
+            <h3 className="font-bold text-md text-slate-200 font-editorial-serif">
               Start a Conversation
             </h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm font-semibold">
+            <p className="text-xs text-slate-500 mt-2 max-w-sm font-medium font-grotesk-sans leading-relaxed">
               Select target documents and ask questions. The agent will retrieve text, tables, and figures to draft a verified response.
             </p>
           </div>
@@ -184,19 +184,19 @@ export default function ChatPage() {
             
             {/* Typing Loader State */}
             {sendingMessage && (
-              <div className="flex gap-4 py-6 px-4 md:px-6 bg-indigo-950/5 border-b border-indigo-950/10 justify-start select-none">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 border border-indigo-500 text-white flex items-center justify-center shrink-0">
+              <div className="flex gap-4 py-6 px-4 md:px-6 bg-surface/10 border-b border-neutral-border/20 justify-start select-none">
+                <div className="w-8 h-8 rounded-sm bg-background border border-primary/20 text-primary flex items-center justify-center shrink-0">
                   <Loader2 className="w-4 h-4 animate-spin" />
                 </div>
                 <div className="flex flex-col gap-2 flex-1 mt-1.5">
-                  <span className="text-[10px] font-extrabold text-indigo-400 uppercase tracking-wider animate-pulse">
+                  <span className="text-[9px] font-bold text-primary font-tech-mono uppercase tracking-widest animate-pulse">
                     Copilot is planning and reasoning...
                   </span>
                   {/* Pulsing indicator dots */}
                   <div className="flex items-center gap-1 mt-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
                 </div>
               </div>
@@ -207,16 +207,16 @@ export default function ChatPage() {
       </div>
 
       {/* Suggestion Prompt & Input Area */}
-      <div className="p-4 md:p-6 border-t border-slate-800/80 bg-slate-900/20 shrink-0 select-none">
+      <div className="p-4 md:p-6 border-t border-neutral-border bg-surface shrink-0 select-none">
         <div className="max-w-4xl mx-auto flex flex-col gap-4">
           {/* suggestion pills */}
           {messages.length === 0 && (
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2">
               {suggestions.map((s, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleSuggestionClick(s)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-800 hover:border-indigo-500/30 bg-slate-900/60 hover:bg-slate-900 text-[10px] font-bold text-slate-400 hover:text-indigo-400 text-left transition-all duration-150"
+                  className="px-3 py-1.5 rounded-sm border border-neutral-border hover:border-slate-550 bg-background hover:bg-surface text-[9px] font-bold font-tech-mono text-slate-500 hover:text-primary text-left transition-all duration-150 uppercase tracking-wide"
                 >
                   {s}
                 </button>
@@ -225,19 +225,19 @@ export default function ChatPage() {
           )}
 
           {/* Form input */}
-          <form onSubmit={handleSend} className="relative">
+          <form onSubmit={handleSend} className="relative font-sans">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ask anything about the scoped papers..."
-              className="w-full pl-4 pr-12 py-3.5 bg-slate-900 border border-slate-800 rounded-2xl text-xs md:text-sm font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors shadow-2xl"
+              className="w-full pl-4 pr-12 py-3 bg-background border border-neutral-border rounded-sm text-xs md:text-sm font-semibold text-slate-200 placeholder-slate-650 focus:outline-none focus:border-primary transition-colors font-tech-mono"
               disabled={sendingMessage}
             />
             <button
               type="submit"
               disabled={sendingMessage || !query.trim()}
-              className="absolute right-2 top-2 p-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white disabled:text-slate-600 transition-colors shadow-lg shadow-indigo-600/20 disabled:shadow-none"
+              className="absolute right-2 top-2 p-1.5 rounded-sm bg-background border border-neutral-border hover:border-primary/50 text-slate-500 hover:text-primary disabled:text-slate-750 disabled:border-neutral-border/20 transition-colors"
             >
               <Send className="w-4 h-4" />
             </button>
