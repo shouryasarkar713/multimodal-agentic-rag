@@ -50,7 +50,7 @@ export function DocumentUploader({
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
-        className={`relative w-full py-10 px-6 rounded-md border border-dashed flex flex-col items-center justify-center gap-4 transition-all duration-150 ${
+        className={`relative w-full py-10 px-6 rounded-sm border border-dashed flex flex-col items-center justify-center gap-4 transition-all duration-150 ${
           dragActive
             ? 'border-primary bg-background/50 scale-[1.0]'
             : 'border-neutral-border bg-background/10 hover:border-slate-500 hover:bg-background/20'
@@ -69,7 +69,8 @@ export function DocumentUploader({
           htmlFor="file-upload-input"
           className="flex flex-col items-center justify-center cursor-pointer select-none text-center"
         >
-          <div className={`p-3.5 rounded-md border mb-2 transition-colors ${dragActive ? 'border-primary text-primary' : 'border-neutral-border text-slate-500'}`}>
+          {/* Simple typography/icon treatment without border container boxes */}
+          <div className="mb-2 text-slate-400 hover:text-primary transition-colors">
             {uploading ? (
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             ) : (
@@ -99,12 +100,12 @@ export function DocumentUploader({
 
       {/* Error Banner */}
       {error && (
-        <div className="flex items-center gap-2.5 p-3 rounded-md border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold font-tech-mono">
+        <div className="flex items-center gap-2.5 p-3 rounded-sm border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold font-tech-mono">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span className="flex-1 uppercase tracking-wide text-[10px]">{error}</span>
           <button
             onClick={() => setError(null)}
-            className="text-[9px] uppercase font-bold hover:text-red-300 px-1.5 py-0.5 rounded border border-red-500/20 hover:bg-red-500/10 transition-colors"
+            className="text-[9px] uppercase font-bold hover:text-red-300 px-1.5 py-0.5 rounded-sm border border-red-500/20 hover:bg-red-500/10 transition-colors"
           >
             Clear
           </button>
