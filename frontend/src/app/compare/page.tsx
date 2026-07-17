@@ -137,9 +137,6 @@ export default function ComparePage() {
             Side-by-Side Comparison Workspace
           </h1>
         </div>
-        <p className="text-xs text-slate-455 mt-1 font-tech-mono uppercase tracking-wide">
-          /cross_paper_variable_analysis
-        </p>
       </div>
 
       {/* Comparison Controller Form */}
@@ -195,7 +192,7 @@ export default function ComparePage() {
             <button
               type="submit"
               disabled={comparing || !docAId || !docBId || !query.trim()}
-              className="px-5 py-2.5 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary disabled:text-slate-770 disabled:border-neutral-border/20 text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-all duration-150 flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary disabled:text-slate-700 disabled:border-neutral-border/20 text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-all duration-150 flex items-center gap-1.5"
             >
               {comparing ? (
                 <>
@@ -230,15 +227,15 @@ export default function ComparePage() {
       ) : (
         <>
           <ComparisonTable
-            paperA={paperA}
-            paperB={paperB}
-            comparisonQuery={query}
-            isComparing={comparing}
-            subQueries={subQueries}
-            subResults={subResults}
-            comparativeAnswer={comparativeAnswer}
-            citations={citations}
-          />
+              paperA={paperA}
+              paperB={paperB}
+              comparisonQuery={query}
+              isComparing={comparing}
+              subQueries={subQueries}
+              subResults={subResults}
+              comparativeAnswer={comparativeAnswer}
+              citations={citations}
+            />
           {/* Continue in Chat Button */}
           {lastSessionId && comparativeAnswer && (
             <div className="p-4 rounded-sm border border-neutral-border bg-surface flex items-center justify-between font-sans">
@@ -248,11 +245,9 @@ export default function ComparePage() {
               </div>
               <button
                 onClick={() => router.push(`/chat?session=${lastSessionId}`)}
-                className="px-4 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-colors flex items-center gap-1.5"
+                className="flex items-center gap-1 px-3 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-350 hover:text-primary transition-all duration-150 text-[10px] font-bold font-tech-mono uppercase tracking-wider rounded-sm"
               >
-                <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                <ArrowRight className="w-3.5 h-3.5 text-primary" />
-                <span>Continue in Chat</span>
+                Open in Chat Workspace <ArrowRight className="w-3.5 h-3.5 text-primary" />
               </button>
             </div>
           )}
