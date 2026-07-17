@@ -11,13 +11,16 @@ import { DocumentUploader } from '../../components/DocumentUploader';
 export default function LibraryPage() {
   const router = useRouter();
   const { documents, uploading, error, setError, uploadFile, deleteDoc } = useDocuments();
-  const { setSelectedDocumentIds } = useChatContext();
+  const { setSelectedDocumentIds, createNewSession } = useChatContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string } | null>(null);
 
-  const handleChatAboutDocument = (docId: string) => {
+  const handleChatAboutDocument = async (docId: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    const title = doc ? `Chat: ${doc.title || doc.filename}` : undefined;
     setSelectedDocumentIds([docId]);
+    await createNewSession(title);
     router.push('/chat');
   };
 
