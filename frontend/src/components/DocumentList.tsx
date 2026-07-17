@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Trash2, Image as ImageIcon, CheckCircle2, Loader2, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Trash2, Image as ImageIcon, CheckCircle2, Loader2, XCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Document } from '../lib/types';
 import { api } from '../lib/api';
 
@@ -53,8 +53,8 @@ export function DocumentList({
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50">
-      <table className="w-full border-collapse text-left text-xs font-semibold text-slate-300">
+    <div className="w-full overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/50">
+      <table className="w-full min-w-[700px] border-collapse text-left text-xs font-semibold text-slate-300">
         <thead className="bg-slate-800/40 text-slate-400 border-b border-slate-800 uppercase text-[10px] tracking-wider">
           <tr>
             <th className="py-3 px-4">Title / Filename</th>
@@ -157,6 +157,7 @@ export function DocumentList({
                       </div>
                     </td>
                   </tr>
+                  {/* Expanded Figures Drawer */}
                   {isExpanded && (
                     <tr>
                       <td colSpan={6} className="bg-slate-900/60 p-4 border-t border-slate-800/30">
@@ -180,6 +181,7 @@ export function DocumentList({
                                   className="relative aspect-video rounded-lg border border-slate-800 bg-slate-950 overflow-hidden cursor-pointer hover:border-indigo-500/50 hover:shadow-lg transition-all duration-200 group/fig"
                                   onClick={() => onOpenFigure(fig.image_url, fig.caption, fig.page_number, doc.id)}
                                 >
+                                  {/* Thumbnail */}
                                   <img
                                     src={`${process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '') : 'http://localhost:8000'}${fig.image_url}`}
                                     alt={fig.caption || 'Extracted Figure'}
