@@ -50,13 +50,17 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8 relative">
+      {/* Background Ambient Glow Refractions */}
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+      <div className="absolute bottom-10 right-10 w-[450px] h-[450px] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+
       {/* Page Header */}
       <div>
-        <h1 className="font-extrabold text-2xl md:text-3xl text-slate-100 tracking-tight">
-          Welcome back to Research Copilot
+        <h1 className="font-extrabold text-2xl md:text-3xl text-slate-100 tracking-tight flex items-center gap-2">
+          Welcome back to <span className="text-indigo-400 neon-text">Research Copilot</span>
         </h1>
-        <p className="text-xs md:text-sm text-slate-400 mt-1 font-semibold">
+        <p className="text-xs md:text-sm text-slate-400 mt-1.5 font-semibold">
           Upload technical papers, query schemas or architectures, and run cross-paper comparison checks.
         </p>
       </div>
@@ -64,46 +68,50 @@ export default function Dashboard() {
       {/* Metrics Card Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Metric 1 */}
-        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex items-center gap-4 hover:border-slate-700/60 transition-all duration-200">
-          <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+        <div className="glass-card rounded-2xl p-5 flex items-center gap-4 hover:border-indigo-500/40 transition-all duration-300 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition-transform duration-300">
             <BookOpen className="w-5 h-5" />
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Papers</div>
-            <div className="text-lg font-bold text-slate-100 mt-0.5">{documents.length}</div>
+            <div className="text-lg font-bold text-slate-100 mt-0.5 font-mono">{documents.length}</div>
           </div>
         </div>
 
         {/* Metric 2 */}
-        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex items-center gap-4 hover:border-slate-700/60 transition-all duration-200">
-          <div className="p-3 rounded-xl bg-green-500/10 text-green-400 border border-green-500/20">
+        <div className="glass-card rounded-2xl p-5 flex items-center gap-4 hover:border-green-500/40 transition-all duration-300 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/10 rounded-full blur-xl -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="p-3 rounded-xl bg-green-500/10 text-green-400 border border-green-500/20 group-hover:scale-110 transition-transform duration-300">
             <Layers className="w-5 h-5" />
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Ready Chunks</div>
-            <div className="text-lg font-bold text-slate-100 mt-0.5">{readyDocsCount} Ingested</div>
+            <div className="text-lg font-bold text-slate-100 mt-0.5 font-mono">{readyDocsCount} Ingested</div>
           </div>
         </div>
 
         {/* Metric 3 */}
-        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex items-center gap-4 hover:border-slate-700/60 transition-all duration-200">
-          <div className="p-3 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20">
+        <div className="glass-card rounded-2xl p-5 flex items-center gap-4 hover:border-violet-500/40 transition-all duration-300 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/10 rounded-full blur-xl -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="p-3 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/20 group-hover:scale-110 transition-transform duration-300">
             <FileText className="w-5 h-5" />
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Pages</div>
-            <div className="text-lg font-bold text-slate-100 mt-0.5">{totalPages} pages</div>
+            <div className="text-lg font-bold text-slate-100 mt-0.5 font-mono">{totalPages} pages</div>
           </div>
         </div>
 
         {/* Metric 4 */}
-        <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex items-center gap-4 hover:border-slate-700/60 transition-all duration-200">
-          <div className="p-3 rounded-xl bg-pink-500/10 text-pink-400 border border-pink-500/20">
+        <div className="glass-card rounded-2xl p-5 flex items-center gap-4 hover:border-pink-500/40 transition-all duration-300 relative overflow-hidden group border-indigo-500/20 shadow-neon">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/10 rounded-full blur-xl -mr-10 -mt-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          <div className="p-3 rounded-xl bg-pink-500/10 text-pink-400 border border-pink-500/20 group-hover:scale-110 transition-transform duration-300">
             <MessageSquare className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Chat Sessions</div>
-            <div className="text-lg font-bold text-slate-100 mt-0.5">{sessions.length} sessions</div>
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-semibold">Chat Sessions</div>
+            <div className="text-lg font-bold text-slate-100 mt-0.5 font-mono">{sessions.length} sessions</div>
           </div>
         </div>
       </div>
@@ -113,9 +121,10 @@ export default function Dashboard() {
         {/* Upload & Quick Chat Side Panels */}
         <div className="lg:col-span-1 flex flex-col gap-6">
           {/* Document Ingestion Zone */}
-          <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex flex-col gap-4">
-            <h3 className="font-extrabold text-xs uppercase text-slate-400 tracking-wider">
-              Ingest Document
+          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl -mr-6 -mt-6"></div>
+            <h3 className="font-extrabold text-xs uppercase text-slate-350 tracking-wider flex items-center gap-1.5 pl-1">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" /> Ingest Document
             </h3>
             <DocumentUploader
               onUpload={uploadFile}
@@ -126,9 +135,10 @@ export default function Dashboard() {
           </div>
 
           {/* Quick Launcher Launcher */}
-          <div className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex flex-col gap-4">
-            <h3 className="font-extrabold text-xs uppercase text-slate-400 tracking-wider">
-              Quick Query Launcher
+          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-xl -mr-6 -mt-6"></div>
+            <h3 className="font-extrabold text-xs uppercase text-slate-350 tracking-wider flex items-center gap-1.5 pl-1">
+              <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" /> Quick Query Launcher
             </h3>
             <form onSubmit={handleQuickChatSubmit} className="relative">
               <input
@@ -136,11 +146,11 @@ export default function Dashboard() {
                 value={quickQuery}
                 onChange={(e) => setQuickQuery(e.target.value)}
                 placeholder="Ask something about your papers..."
-                className="w-full pl-3 pr-10 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                className="w-full pl-3.5 pr-10 py-3 bg-slate-950/70 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
               />
               <button
                 type="submit"
-                className="absolute right-1.5 top-1.5 p-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+                className="absolute right-2 top-2 p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-600/20"
                 title="Launch Chat"
               >
                 <Send className="w-3.5 h-3.5" />
@@ -152,12 +162,12 @@ export default function Dashboard() {
         {/* Recent Uploads Table Panel */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h3 className="font-extrabold text-xs uppercase text-slate-400 tracking-wider pl-1">
-              Recent Documents Ingested
+            <h3 className="font-extrabold text-xs uppercase text-slate-350 tracking-wider pl-1 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-indigo-400" /> Recent Documents Ingested
             </h3>
             <button
               onClick={() => router.push('/documents')}
-              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors uppercase tracking-wider"
+              className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors uppercase tracking-wider bg-indigo-500/5 border border-indigo-500/10 px-2.5 py-1 rounded-lg hover:border-indigo-550/20"
             >
               Library <ArrowRight className="w-3.5 h-3.5" />
             </button>
