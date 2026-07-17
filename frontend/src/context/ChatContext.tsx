@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
 import { Session, Message } from '../lib/types';
 
@@ -33,11 +33,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch all chat sessions
   const fetchSessions = useCallback(async () => {
     try {
       setLoadingSessions(true);
       const res = await api.getSessions();
       setSessions(res.sessions);
+      
+      // Auto-select latest session if none is selected and sessions exist
       if (res.sessions.length > 0 && !activeSessionId) {
         setActiveSessionId(res.sessions[0].id);
       }
@@ -48,6 +51,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeSessionId]);
 
+  // Load message history for active session
   const fetchMessages = useCallback(async (sessionId: string) => {
     try {
       setLoadingMessages(true);
@@ -61,6 +65,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Create a new session
   const createNewSession = useCallback(async (title?: string) => {
     try {
       setError(null);
@@ -75,6 +80,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Delete a session
   const deleteSession = useCallback(async (id: string) => {
     try {
       setError(null);
@@ -89,18 +95,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeSessionId]);
 
+  // Submit chat query
   const submitQuery = useCallback(async (queryText: string) => {
     if (!queryText.trim()) return;
 
     let sessionId = activeSessionId;
+    
+    // Auto-create session if none active
     if (!sessionId) {
       const createdId = await createNewSession(queryText.substring(0, 30));
       if (!createdId) return;
       sessionId = createdId;
     }
 
+    // 1. Optimistic User Message update
     const userMsg: Message = {
-      id: Math.random().toString(),
+      id: Math.random().toString(), // temp ID
       role: 'user',
       content: queryText,
       created_at: new Date().toISOString(),
@@ -111,12 +121,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
+      // 2. Call API
       const res = await api.chat({
         session_id: sessionId,
         query: queryText,
         document_ids: selectedDocumentIds.length > 0 ? selectedDocumentIds : undefined,
       });
 
+      // 3. Append Assistant Message response
       const assistantMsg: Message = {
         id: res.message_id,
         role: 'assistant',
@@ -129,6 +141,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+      
+      // Update session list to increment message counts / update ordering
       fetchSessions();
       
     } catch (err: any) {
@@ -145,12 +159,41 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeSessionId, selectedDocumentIds, createNewSession, fetchSessions]);
 
+  // Fetch session messages when activeSessionId changes
   useEffect(() => {
     if (activeSessionId) {
       fetchMessages(activeSessionId);
     }
   }, [activeSessionId, fetchMessages]);
 
+  // Load stored document selection scope when activeSessionId changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (activeSessionId) {
+        const stored = localStorage.getItem(`session_docs_${activeSessionId}`);
+        if (stored) {
+          try {
+            setSelectedDocumentIds(JSON.parse(stored));
+          } catch (e) {
+            setSelectedDocumentIds([]);
+          }
+        } else {
+          setSelectedDocumentIds([]);
+        }
+      } else {
+        setSelectedDocumentIds([]);
+      }
+    }
+  }, [activeSessionId]);
+
+  // Persist document selection scope changes to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && activeSessionId) {
+      localStorage.setItem(`session_docs_${activeSessionId}`, JSON.stringify(selectedDocumentIds));
+    }
+  }, [activeSessionId, selectedDocumentIds]);
+
+  // Initial load
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
