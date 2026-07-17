@@ -11,6 +11,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     setActiveSessionId,
     createNewSession,
     deleteSession,
+    setSelectedDocumentIds,
   } = useChatContext();
 
   return (
@@ -22,6 +23,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         setActiveSessionId={setActiveSessionId}
         createNewSession={createNewSession}
         deleteSession={deleteSession}
+        setSelectedDocumentIds={setSelectedDocumentIds}
       />
       
       {/* Main Panel Content Area */}
