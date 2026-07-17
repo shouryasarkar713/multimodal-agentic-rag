@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Send, Loader2, Sparkles, Filter, CheckSquare, Square, FileText } from 'lucide-react';
 import { useChatContext } from '../../context/ChatContext';
 import { useDocuments } from '../../hooks/useDocuments';
@@ -14,12 +15,24 @@ export default function ChatPage() {
     selectedDocumentIds,
     setSelectedDocumentIds,
     submitQuery,
+    setActiveSessionId,
   } = useChatContext();
 
   const { documents } = useDocuments();
   const [query, setQuery] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Handle session query parameter from compare page
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const sessionId = searchParams.get('session');
+    if (sessionId && sessionId !== activeSessionId) {
+      setActiveSessionId(sessionId);
+      // Clean up URL
+      window.history.replaceState({}, '', '/chat');
+    }
+  }, [searchParams, activeSessionId, setActiveSessionId]);
 
   // Suggestion Prompts
   const suggestions = [

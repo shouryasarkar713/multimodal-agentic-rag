@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Columns, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Columns, Loader2, Sparkles, AlertCircle, MessageSquare, ArrowRight } from 'lucide-react';
 import { useDocuments } from '../../hooks/useDocuments';
 import { api } from '../../lib/api';
 import { Citation } from '../../lib/types';
 import { ComparisonTable } from '../../components/ComparisonTable';
 
 export default function ComparePage() {
+  const router = useRouter();
   const { documents } = useDocuments();
   const [docAId, setDocAId] = useState<string>('');
   const [docBId, setDocBId] = useState<string>('');
@@ -15,10 +17,12 @@ export default function ComparePage() {
   const [comparing, setComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Comparison execution states
   const [subQueries, setSubQueries] = useState<string[]>([]);
   const [subResults, setSubResults] = useState<any[]>([]);
   const [comparativeAnswer, setComparativeAnswer] = useState<string | null>(null);
   const [citations, setCitations] = useState<Citation[]>([]);
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
   const readyDocuments = documents.filter((d) => d.status === 'ready');
   const paperA = readyDocuments.find((d) => d.id === docAId) || null;
@@ -43,8 +47,15 @@ export default function ComparePage() {
     setCitations([]);
 
     try {
+      // 1. Create a temporary chat session for this comparison
       const session = await api.createSession(`Comparison: ${paperA?.filename.slice(0, 10)} vs ${paperB?.filename.slice(0, 10)}`);
-      
+
+      // Save document scope to localStorage for this session so it persists when navigating to chat
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`session_docs_${session.id}`, JSON.stringify([docAId, docBId]));
+      }
+      setLastSessionId(session.id);
+      // Prefix with comparative instruction to guide classifier intent
       const fullQuery = `Compare: ${query}`;
       const res = await api.chat({
         session_id: session.id,
@@ -52,12 +63,18 @@ export default function ComparePage() {
         document_ids: [docAId, docBId],
       });
 
+      // 3. Since the comparison runs inside the multi-hop LangGraph graph path,
+      // let's fetch the trace if we need raw sub-results, or parse the citations & answer.
+      // Fetch detailed execution traces to render sub-queries and sub-results
       const trace = await api.getTrace(res.trace_id);
       
+      // Find multi-hop node step in trace
       const hopStep = trace.steps.find((s) => s.step_name === 'multi_hop_decomposition');
       if (hopStep && hopStep.metadata) {
         setSubQueries(hopStep.metadata.sub_queries || []);
+        // Chunks categorized by sub-query
         const results = hopStep.metadata.sub_queries.map((q: string, idx: number) => {
+          // Flatten chunks from citations matching Paper A or B
           return {
             sub_query: q,
             retrieved_chunks: res.citations.map((c: any) => ({
@@ -72,6 +89,7 @@ export default function ComparePage() {
         });
         setSubResults(results);
       } else {
+        // Fallback sub-results grouping
         const mockResults = [
           {
             sub_query: `Analysis of ${paperA?.title || paperA?.filename}`,
@@ -111,6 +129,7 @@ export default function ComparePage() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto flex flex-col gap-8">
+      {/* Header */}
       <div>
         <div className="flex items-center gap-2">
           <Columns className="w-5 h-5 text-indigo-400" />
@@ -123,8 +142,10 @@ export default function ComparePage() {
         </p>
       </div>
 
+      {/* Comparison Controller Form */}
       <form onSubmit={handleCompareSubmit} className="p-5 rounded-2xl border border-slate-800 bg-slate-900/40 flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Dropdown Paper A */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Select Paper A</label>
             <select
@@ -141,6 +162,7 @@ export default function ComparePage() {
             </select>
           </div>
 
+          {/* Dropdown Paper B */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Select Paper B</label>
             <select
@@ -158,6 +180,7 @@ export default function ComparePage() {
           </div>
         </div>
 
+        {/* Comparison Query Prompt Input */}
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Comparison Topic / Question</label>
           <div className="flex gap-3">
@@ -187,6 +210,7 @@ export default function ComparePage() {
           </div>
         </div>
 
+        {/* Error banner */}
         {error && (
           <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold rounded-lg">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -195,6 +219,7 @@ export default function ComparePage() {
         )}
       </form>
 
+      {/* Comparison Grid Results */}
       {comparing ? (
         <div className="flex flex-col items-center justify-center p-16 select-none">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mb-3" />
@@ -203,16 +228,35 @@ export default function ComparePage() {
           </p>
         </div>
       ) : (
-        <ComparisonTable
-          paperA={paperA}
-          paperB={paperB}
-          comparisonQuery={query}
-          isComparing={comparing}
-          subQueries={subQueries}
-          subResults={subResults}
-          comparativeAnswer={comparativeAnswer}
-          citations={citations}
-        />
+        <>
+          <ComparisonTable
+            paperA={paperA}
+            paperB={paperB}
+            comparisonQuery={query}
+            isComparing={comparing}
+            subQueries={subQueries}
+            subResults={subResults}
+            comparativeAnswer={comparativeAnswer}
+            citations={citations}
+          />
+          {/* Continue in Chat Button */}
+          {lastSessionId && comparativeAnswer && (
+            <div className="p-4 rounded-xl border border-indigo-500/20 bg-indigo-950/10 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-indigo-400">Comparison Complete</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Continue the conversation with both papers in scope</p>
+              </div>
+              <button
+                onClick={() => router.push(`/chat?session=${lastSessionId}`)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-indigo-600/20"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Continue in Chat</span>
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -19,6 +19,7 @@ export default function LibraryPage() {
   const handleChatAboutDocument = async (docId: string) => {
     const doc = documents.find((d) => d.id === docId);
     const title = doc ? `Chat: ${doc.title || doc.filename}` : undefined;
+    // Pass docId as initialDocIds so the new session gets the correct document scope
     await createNewSession(title, [docId]);
     router.push('/chat');
   };
