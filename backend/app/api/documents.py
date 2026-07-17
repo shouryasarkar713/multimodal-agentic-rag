@@ -72,6 +72,35 @@ async def upload_document(
             detail="File exceeds maximum page limit of 100 pages."
         )
         
+    # Check if a document with the same filename already exists
+    stmt_check = select(Document).where(Document.filename == file.filename)
+    result_check = await db.execute(stmt_check)
+    existing_doc = result_check.scalars().first()
+    if existing_doc:
+        # Delete physical files from disk
+        if os.path.exists(existing_doc.file_path):
+            try:
+                os.remove(existing_doc.file_path)
+            except Exception as e:
+                logging.error(f"Error removing PDF file {existing_doc.file_path}: {e}")
+                
+        # Fetch all image chunks to delete figure images
+        stmt_img = select(Chunk.image_path).where(
+            Chunk.document_id == existing_doc.id, 
+            Chunk.content_type == "image"
+        )
+        res_img = await db.execute(stmt_img)
+        img_paths = res_img.scalars().all()
+        for path in img_paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    logging.error(f"Error removing figure file {path}: {e}")
+                    
+        await db.delete(existing_doc)
+        await db.commit()
+
     # 4. Save file to disk
     document_id = uuid.uuid4()
     os.makedirs("/data/uploads", exist_ok=True)
@@ -141,29 +170,26 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
         .group_by(Chunk.content_type)
     )
     result = await db.execute(stmt)
-    counts = dict(result.all())
-    
-    chunk_counts = ChunkCounts(
-        text=counts.get("text", 0),
-        table=counts.get("table", 0),
-        image=counts.get("image", 0)
-    )
+    counts_map = {row[0]: row[1] for row in result.all()}
     
     return DocumentDetailResponse(
         id=doc.id,
         filename=doc.filename,
         title=doc.title,
         authors=doc.authors,
-        abstract=doc.abstract,
         total_pages=doc.total_pages,
         status=doc.status,
-        chunk_counts=chunk_counts,
-        created_at=doc.created_at
+        created_at=doc.created_at,
+        chunk_counts=ChunkCounts(
+            text=counts_map.get("text", 0),
+            table=counts_map.get("table", 0),
+            image=counts_map.get("image", 0)
+        )
     )
 
 @router.delete("/{document_id}", response_model=DeleteResponse)
 async def delete_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Delete a document and all its chunks, embeddings, and physical files."""
+    """Delete a document, its database records, chunks, embeddings and physical files."""
     doc = await db.get(Document, document_id)
     if not doc:
         raise HTTPException(
@@ -269,6 +295,35 @@ async def download_arxiv(
             detail="Could not open downloaded PDF."
         )
         
+    # Check if a document with the same filename already exists
+    stmt_check = select(Document).where(Document.filename == filename)
+    result_check = await db.execute(stmt_check)
+    existing_doc = result_check.scalars().first()
+    if existing_doc:
+        # Delete physical files from disk
+        if os.path.exists(existing_doc.file_path):
+            try:
+                os.remove(existing_doc.file_path)
+            except Exception as e:
+                logging.error(f"Error removing PDF file {existing_doc.file_path}: {e}")
+                
+        # Fetch all image chunks to delete figure images
+        stmt_img = select(Chunk.image_path).where(
+            Chunk.document_id == existing_doc.id, 
+            Chunk.content_type == "image"
+        )
+        res_img = await db.execute(stmt_img)
+        img_paths = res_img.scalars().all()
+        for path in img_paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    logging.error(f"Error removing figure file {path}: {e}")
+                    
+        await db.delete(existing_doc)
+        await db.commit()
+
     document_id = uuid.uuid4()
     os.makedirs("/data/uploads", exist_ok=True)
     file_path = f"/data/uploads/{document_id}.pdf"
