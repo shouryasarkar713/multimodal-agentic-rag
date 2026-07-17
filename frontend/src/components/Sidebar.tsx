@@ -32,24 +32,19 @@ export function Sidebar({
   ];
 
   return (
-    <div className="w-60 bg-slate-950/70 backdrop-blur-xl border-r border-slate-800/60 flex flex-col h-screen fixed left-0 top-0 text-slate-100 z-10 shadow-2xl">
+    <div className="w-60 bg-surface border-r border-neutral-border flex flex-col h-screen fixed left-0 top-0 text-slate-100 z-10 shadow-sm font-sans">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800/65 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-indigo-600 border border-indigo-400/35 flex items-center justify-center font-bold text-white shadow-lg neon-glow">
-          R
-        </div>
-        <div>
-          <h1 className="font-extrabold text-md tracking-tight bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-            Research Copilot
-          </h1>
-          <p className="text-[10px] text-slate-500 font-bold tracking-wider">
-            AGENTIC MULTIMODAL RAG
-          </p>
-        </div>
+      <div className="p-5 border-b border-neutral-border flex flex-col gap-1">
+        <h1 className="font-editorial-serif text-lg font-bold text-slate-150 tracking-tight">
+          Research Copilot
+        </h1>
+        <p className="text-[9px] text-slate-500 font-bold font-tech-mono tracking-widest uppercase pl-0.5">
+          Academic Workspace
+        </p>
       </div>
 
       {/* Main Navigation Links */}
-      <nav className="p-4 flex flex-col gap-1.5">
+      <nav className="p-0 flex flex-col scholarly-border-b">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -70,28 +65,23 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               onClick={handleClick}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 group relative overflow-hidden ${
+              className={`flex items-center gap-3 px-4 py-3 text-xs font-bold font-tech-mono uppercase tracking-wider transition-all duration-150 border-l-2 border-b border-neutral-border/30 -mb-px ${
                 isActive
-                  ? 'bg-indigo-600/10 text-indigo-400 border-l-4 border-indigo-500 pl-2 rounded-l-none'
-                  : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-250'
+                  ? 'bg-background/60 text-primary border-l-primary'
+                  : 'text-slate-400 hover:bg-background/25 hover:text-slate-250 border-l-transparent'
               }`}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Icon
-                className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 relative z-10 ${
-                  isActive ? 'text-indigo-400' : 'text-slate-400'
-                }`}
-              />
-              <span className="relative z-10">{item.label}</span>
+              <Icon className="w-3.5 h-3.5" />
+              {item.label}
             </Link>
           );
         })}
       </nav>
 
       {/* Divider */}
-      <div className="px-4 py-2 flex items-center justify-between border-t border-slate-800/40 mt-2">
-        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 pl-1">
-          Conversations
+      <div className="px-4 py-3 flex items-center justify-between mt-2">
+        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 font-tech-mono pl-1">
+          Chat Index
         </span>
         <button
           onClick={async () => {
@@ -100,7 +90,7 @@ export function Sidebar({
               router.push('/chat');
             }
           }}
-          className="p-1 rounded-md text-slate-400 hover:bg-slate-800 hover:text-indigo-400 transition-colors"
+          className="p-1 rounded text-slate-500 hover:bg-background hover:text-primary transition-colors border border-neutral-border/20"
           title="New Chat Session"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -108,19 +98,19 @@ export function Sidebar({
       </div>
 
       {/* Scrollable Sessions List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-1.5 select-none scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-2 pb-4 flex flex-col select-none scrollbar-thin">
         {sessions.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-655 font-medium">
-            No active chats
+          <div className="text-center py-6 text-[11px] font-tech-mono text-slate-600 uppercase tracking-wider font-semibold">
+            No active index
           </div>
         ) : (
           sessions.map((s) => (
             <div
               key={s.id}
-              className={`flex items-center justify-between group px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all duration-150 border ${
+              className={`flex items-center justify-between group px-3 py-2 text-[11px] font-medium font-sans cursor-pointer transition-all duration-150 border border-transparent border-y -my-px ${
                 activeSessionId === s.id
-                  ? 'bg-slate-800/50 text-indigo-400 shadow-sm border-slate-700/40'
-                  : 'text-slate-450 hover:bg-slate-800/20 hover:text-slate-200 border-transparent'
+                  ? 'bg-background/40 text-primary border-neutral-border/60'
+                  : 'text-slate-455 hover:bg-background/10 hover:text-slate-200'
               }`}
               onClick={() => {
                 setActiveSessionId(s.id);
@@ -129,9 +119,9 @@ export function Sidebar({
                 }
               }}
             >
-              <span className="truncate pr-2 flex-1">{s.title}</span>
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded-full bg-slate-800/80 text-[10px] font-mono text-slate-500 border border-slate-700/20 group-hover:bg-slate-700/60">
+              <span className="truncate pr-2 flex-1 leading-snug">{s.title}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 text-[9px] font-tech-mono text-slate-500 border border-neutral-border/30 bg-background/20 font-bold">
                   {s.message_count || 0}
                 </span>
                 <button
@@ -141,7 +131,7 @@ export function Sidebar({
                       deleteSession(s.id);
                     }
                   }}
-                  className="p-0.5 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all duration-150"
+                  className="p-0.5 rounded text-slate-650 hover:text-red-400 hover:bg-background border border-transparent hover:border-red-500/20 opacity-0 group-hover:opacity-100 transition-all duration-150"
                   title="Delete chat"
                 >
                   <Trash2 className="w-3 h-3" />
