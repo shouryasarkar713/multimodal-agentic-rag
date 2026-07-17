@@ -15,14 +15,16 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans antialiased">
+      {/* Fixed Sidebar */}
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
         setActiveSessionId={setActiveSessionId}
-        createNewSession={() => createNewSession()}
+        createNewSession={createNewSession}
         deleteSession={deleteSession}
       />
       
+      {/* Main Panel Content Area */}
       <div className="flex-1 pl-60 min-h-screen flex flex-col">
         <main className="flex-1 overflow-y-auto">
           {children}
