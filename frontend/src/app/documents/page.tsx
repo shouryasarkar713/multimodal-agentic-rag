@@ -19,8 +19,7 @@ export default function LibraryPage() {
   const handleChatAboutDocument = async (docId: string) => {
     const doc = documents.find((d) => d.id === docId);
     const title = doc ? `Chat: ${doc.title || doc.filename}` : undefined;
-    setSelectedDocumentIds([docId]);
-    await createNewSession(title);
+    await createNewSession(title, [docId]);
     router.push('/chat');
   };
 
@@ -170,7 +169,9 @@ export default function LibraryPage() {
               
               <button
                 onClick={async () => {
-                  setSelectedDocumentIds([lightboxFig.docId]);
+                  const title = `Explain Figure (Page ${lightboxFig.page})`;
+                  // Create a new session with the document selected in scope
+                  await createNewSession(title, [lightboxFig.docId]);
                   // Store query to submit on Chat page load
                   sessionStorage.setItem('auto_submit_query', `explain figure: ${lightboxFig.caption || 'figure'}`);
                   setLightboxFig(null);
