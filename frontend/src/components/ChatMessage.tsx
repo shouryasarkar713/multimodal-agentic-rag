@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { MessageSquare, Bot, User, Share2, FileText, Activity } from 'lucide-react';
-import { Message, Citation } from '../lib/types';
+import { Bot, User, Activity } from 'lucide-react';
+import { Message } from '../lib/types';
 import { ConfidenceBadge } from './ConfidenceBadge';
 import { ExportButton } from './ExportButton';
 import { CitationCard } from './CitationCard';
@@ -22,11 +22,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
     const regex = /(\[(\d+)\]|\[citation not found\]|\[Figure from source (\d+)\])/g;
     const parts = text.split(regex);
     if (parts.length === 1) {
-      return <p className="whitespace-pre-wrap leading-relaxed">{text}</p>;
+      return <p className="whitespace-pre-wrap leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium">{text}</p>;
     }
 
     return (
-      <p className="whitespace-pre-wrap leading-relaxed">
+      <p className="whitespace-pre-wrap leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium">
         {parts.map((part, idx) => {
           if (part === undefined) return null;
           if (/^\d+$/.test(part)) return null;
@@ -37,7 +37,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               return (
                 <span
                   key={idx}
-                  className="inline-block px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 text-[9px] font-mono font-bold select-none"
+                  className="inline-block px-1.5 py-0.5 rounded-sm bg-red-500/10 text-red-400 border border-red-500/20 text-[8px] font-tech-mono font-bold select-none uppercase tracking-wide"
                 >
                   citation not found
                 </span>
@@ -49,7 +49,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
               return (
                 <span
                   key={idx}
-                  className="inline-block px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[9px] font-mono font-bold select-none cursor-default"
+                  className="inline-block px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20 text-[8px] font-tech-mono font-bold select-none cursor-default uppercase tracking-wide"
                 >
                   {part}
                 </span>
@@ -69,11 +69,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     if (el) {
                       el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                       // Add temporary highlight animation
-                      el.classList.add('ring-2', 'ring-indigo-500');
-                      setTimeout(() => el.classList.remove('ring-2', 'ring-indigo-500'), 1500);
+                      el.classList.add('ring-1', 'ring-primary');
+                      setTimeout(() => el.classList.remove('ring-1', 'ring-primary'), 1500);
                     }
                   }}
-                  className="inline-block px-1.5 py-0.5 rounded bg-indigo-600/15 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-colors text-[9px] font-mono font-bold select-none cursor-pointer"
+                  className="inline-block px-1.5 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-slate-950 transition-colors text-[8px] font-tech-mono font-bold select-none cursor-pointer tracking-wider"
                   title={`Source: ${matchedCitation.document_title}, Page ${matchedCitation.page_number}`}
                 >
                   {part}
@@ -83,7 +83,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             return (
               <span
                 key={idx}
-                className="inline-block px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[9px] font-mono font-bold select-none"
+                className="inline-block px-1.5 py-0.5 rounded-sm bg-slate-800 text-slate-400 text-[8px] font-tech-mono font-bold select-none tracking-wider"
               >
                 {part}
               </span>
@@ -96,28 +96,28 @@ export function ChatMessage({ message }: ChatMessageProps) {
   };
 
   return (
-    <div className={`flex w-full gap-4 py-6 px-4 md:px-6 border-b transition-colors duration-150 ${
+    <div className={`flex w-full gap-4 py-6 px-4 md:px-6 border-b border-neutral-border/40 transition-colors duration-150 ${
       isUser 
-        ? 'bg-slate-950/20 border-slate-900/40 justify-end' 
-        : 'bg-indigo-950/5 border-indigo-950/10 justify-start'
+        ? 'bg-background/10 border-neutral-border/20 justify-end' 
+        : 'bg-surface/20 border-neutral-border/20 justify-start'
     }`}>
       <div className={`flex gap-4 max-w-4xl w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Role Icon Avatar */}
-        <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${
+        <div className={`w-8 h-8 rounded-sm border flex items-center justify-center shrink-0 shadow-sm ${
           isUser 
-            ? 'bg-slate-800 border-slate-750 text-slate-300' 
-            : 'bg-indigo-600 border-indigo-500 text-white'
+            ? 'bg-slate-950 border-neutral-border text-slate-500' 
+            : 'bg-background border-primary/30 text-primary'
         }`}>
           {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
         </div>
 
         {/* Message Content Container */}
-        <div className="flex flex-col gap-3 flex-1 min-w-0">
+        <div className="flex flex-col gap-3 flex-1 min-w-0 font-sans">
           {/* Header Metadata */}
           {!isUser && (
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-xs text-indigo-400 uppercase tracking-wider">
+                <span className="font-bold text-[10px] text-primary font-tech-mono uppercase tracking-widest">
                   Copilot Response
                 </span>
                 {message.confidence !== undefined && message.confidence !== null && (
@@ -129,34 +129,34 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {message.trace_id && (
                 <Link
                   href={`/trace/${message.trace_id}`}
-                  className="inline-flex items-center gap-1 text-[10px] font-extrabold text-slate-500 hover:text-indigo-400 transition-colors"
+                  className="inline-flex items-center gap-1 text-[9px] font-bold font-tech-mono text-slate-500 hover:text-primary transition-colors uppercase tracking-wider border border-neutral-border/25 bg-background/20 px-2 py-0.5 rounded-sm"
                 >
-                  <Activity className="w-3.5 h-3.5" /> View Trace Timeline
+                  <Activity className="w-3.5 h-3.5 text-primary/80" /> Trace node
                 </Link>
               )}
             </div>
           )}
 
           {isUser && (
-            <span className="font-extrabold text-xs text-slate-500 uppercase tracking-wider">
-              You
+            <span className="font-bold text-[10px] text-slate-500 font-tech-mono uppercase tracking-widest">
+              Index query trigger
             </span>
           )}
 
           {/* Text Body */}
-          <div className={`text-slate-200 text-xs md:text-sm font-semibold leading-relaxed ${isUser ? 'bg-slate-800/40 border border-slate-800/80 p-4 rounded-2xl max-w-xl self-end' : ''}`}>
+          <div className={`text-slate-200 leading-relaxed ${isUser ? 'border-l-2 border-primary/70 pl-4 py-1 max-w-2xl self-end italic font-grotesk-sans font-medium text-xs md:text-sm' : ''}`}>
             {renderMessageBody(message.content)}
           </div>
 
           {/* Side-Scrollable Citations List */}
           {!isUser && hasCitations && (
-            <div className="flex flex-col gap-2.5 mt-3 border-t border-slate-800/20 pt-4">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+            <div className="flex flex-col gap-2 mt-3 border-t border-neutral-border/20 pt-4">
+              <span className="text-[10px] font-bold text-slate-500 font-tech-mono uppercase tracking-widest pl-1">
                 Source Citations
               </span>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
                 {message.citations?.map((cit, idx) => (
-                  <div id={`citation-card-${idx}`} key={cit.chunk_id}>
+                  <div id={`citation-card-${idx}`} key={cit.chunk_id} className="transition-all duration-300">
                     <CitationCard citation={cit} />
                   </div>
                 ))}
@@ -166,8 +166,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
           {/* Side-Scrollable Figures List */}
           {!isUser && hasFigures && (
-            <div className="flex flex-col gap-2.5 mt-3 border-t border-slate-800/20 pt-4">
-              <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+            <div className="flex flex-col gap-2 mt-3 border-t border-neutral-border/20 pt-4">
+              <span className="text-[10px] font-bold text-slate-500 font-tech-mono uppercase tracking-widest pl-1">
                 Referenced Figures
               </span>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
@@ -180,11 +180,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
           {/* Footer Actions Row */}
           {!isUser && (
-            <div className="flex items-center justify-between mt-4 border-t border-slate-850 pt-3">
+            <div className="flex items-center justify-between mt-4 border-t border-neutral-border/20 pt-3">
               <div className="flex items-center gap-2">
                 <ExportButton messageId={message.id} />
               </div>
-              <span className="text-[9px] font-mono text-slate-600 font-semibold select-none">
+              <span className="text-[9px] font-tech-mono text-slate-500 font-bold select-none uppercase">
                 {message.created_at ? new Date(message.created_at).toLocaleTimeString() : ''}
               </span>
             </div>
