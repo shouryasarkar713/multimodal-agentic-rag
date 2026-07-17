@@ -19,6 +19,7 @@ body {
   font-family: var(--font-inter, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
 }
 
+/* Custom Scrollbar for premium dark appearance */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -37,6 +38,7 @@ body {
   background: rgba(148, 163, 184, 0.3);
 }
 
+/* Progress bar animation */
 @keyframes progress-animation {
   0% {
     width: 0%;
@@ -57,4 +59,32 @@ body {
 
 .animate-progress {
   animation: progress-animation 15s cubic-bezier(0.1, 0.8, 0.1, 1) infinite;
+}
+
+/* Glassmorphic & Neon Utilities from Stitch Design System */
+.glass-panel {
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.neon-glow {
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.15);
+}
+
+.neon-glow-intense {
+  box-shadow: 0 0 35px rgba(99, 102, 241, 0.35);
+}
+
+.neon-text {
+  text-shadow: 0 0 10px rgba(192, 193, 255, 0.4);
 }
