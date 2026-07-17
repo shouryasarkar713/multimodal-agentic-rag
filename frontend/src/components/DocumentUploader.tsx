@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { UploadCloud, Loader2, AlertCircle } from 'lucide-react';
+import { UploadCloud, FileText, Loader2, AlertCircle } from 'lucide-react';
 
 interface DocumentUploaderProps {
   onUpload: (file: File) => Promise<void>;
@@ -44,16 +44,16 @@ export function DocumentUploader({
   }, [onUpload]);
 
   return (
-    <div className="w-full flex flex-col gap-3">
+    <div className="w-full flex flex-col gap-3 font-sans">
       <div
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
-        className={`relative w-full py-12 px-6 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-4 transition-all duration-300 ${
+        className={`relative w-full py-10 px-6 rounded-md border border-dashed flex flex-col items-center justify-center gap-4 transition-all duration-150 ${
           dragActive
-            ? 'border-indigo-500 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.15)] scale-[1.01]'
-            : 'border-slate-800 bg-slate-800/20 hover:border-slate-700/60 hover:bg-slate-800/40 hover:shadow-[0_0_15px_rgba(99,102,241,0.05)]'
+            ? 'border-primary bg-background/50 scale-[1.0]'
+            : 'border-neutral-border bg-background/10 hover:border-slate-500 hover:bg-background/20'
         }`}
       >
         <input
@@ -69,41 +69,42 @@ export function DocumentUploader({
           htmlFor="file-upload-input"
           className="flex flex-col items-center justify-center cursor-pointer select-none text-center"
         >
-          <div className={`p-4 rounded-full bg-slate-800 border mb-3 transition-colors ${dragActive ? 'border-indigo-500 text-indigo-400' : 'border-slate-700 text-slate-400'}`}>
+          <div className={`p-3.5 rounded-md border mb-2 transition-colors ${dragActive ? 'border-primary text-primary' : 'border-neutral-border text-slate-500'}`}>
             {uploading ? (
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-400" />
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
             ) : (
-              <UploadCloud className="w-8 h-8" />
+              <UploadCloud className="w-6 h-6" />
             )}
           </div>
           
-          <p className="text-sm font-semibold text-slate-200">
-            {uploading ? 'Processing document chunks...' : 'Drag and drop your research paper here'}
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-200 font-tech-mono">
+            {uploading ? '/indexing new paper...' : 'Drop PDF to Index'}
           </p>
-          <p className="text-xs text-slate-500 mt-1.5 font-medium">
+          <p className="text-[10px] text-slate-500 mt-1 font-semibold font-tech-mono">
             PDF format only, up to 50 MB
           </p>
         </label>
         
         {uploading && (
-          <div className="absolute bottom-4 left-6 right-6">
-            <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-indigo-500 rounded-full animate-progress" />
+          <div className="absolute bottom-3 left-4 right-4">
+            <div className="h-1.5 w-full bg-slate-950 border border-neutral-border rounded-sm overflow-hidden">
+              <div className="h-full bg-primary rounded-sm animate-progress" />
             </div>
-            <p className="text-[10px] text-center text-indigo-400/80 font-mono mt-1.5 font-medium animate-pulse">
-              10-step parsing, chunking, and embedding pipeline active
+            <p className="text-[9px] text-center text-primary/80 font-tech-mono mt-1 font-bold animate-pulse uppercase tracking-wider">
+              Stepped parsing, chunking, and embedding active
             </p>
           </div>
         )}
       </div>
 
+      {/* Error Banner */}
       {error && (
-        <div className="flex items-center gap-2.5 p-3 rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold">
+        <div className="flex items-center gap-2.5 p-3 rounded-md border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-semibold font-tech-mono">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          <span className="flex-1">{error}</span>
+          <span className="flex-1 uppercase tracking-wide text-[10px]">{error}</span>
           <button
             onClick={() => setError(null)}
-            className="text-[10px] uppercase font-bold hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-500/10 transition-colors"
+            className="text-[9px] uppercase font-bold hover:text-red-300 px-1.5 py-0.5 rounded border border-red-500/20 hover:bg-red-500/10 transition-colors"
           >
             Clear
           </button>
