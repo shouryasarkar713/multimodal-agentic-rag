@@ -10,6 +10,7 @@ interface SidebarProps {
   setActiveSessionId: (id: string) => void;
   createNewSession: (title?: string) => Promise<string | null>;
   deleteSession: (id: string) => void;
+  setSelectedDocumentIds: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export function Sidebar({
@@ -18,6 +19,7 @@ export function Sidebar({
   setActiveSessionId,
   createNewSession,
   deleteSession,
+  setSelectedDocumentIds,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -51,10 +53,23 @@ export function Sidebar({
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
+
+          const handleClick = async (e: React.MouseEvent) => {
+            if (item.label === 'Chat') {
+              e.preventDefault();
+              setSelectedDocumentIds([]); // Clear document scope selection
+              await createNewSession(); // Start a new conversation
+              if (pathname !== '/chat') {
+                router.push('/chat');
+              }
+            }
+          };
+
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={handleClick}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 group ${
                 isActive
                   ? 'bg-indigo-600/10 text-indigo-400'
@@ -128,7 +143,7 @@ export function Sidebar({
                   className="p-0.5 rounded text-slate-600 hover:text-red-400 hover:bg-slate-700 opacity-0 group-hover:opacity-100 transition-all duration-150"
                   title="Delete chat"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
