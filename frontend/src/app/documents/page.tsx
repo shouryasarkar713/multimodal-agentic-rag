@@ -13,9 +13,9 @@ export default function DocumentsPage() {
   const { documents, uploading, error, setError, uploadFile, deleteDoc } = useDocuments();
   const { createNewSession } = useChatContext();
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string } | null>(null);
+  const [lightboxFig, setLightboxFig] = useState<{ url: string; caption: string; page: number; docId: string; chunkId: string } | null>(null);
 
-  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number, documentId: string) => {
+  const handleOpenFigure = (imageUrl: string, caption: string, pageNumber: number, documentId: string, chunkId: string) => {
     const serverBaseUrl = process.env.NEXT_PUBLIC_API_URL
       ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '')
       : 'http://localhost:8000';
@@ -23,7 +23,8 @@ export default function DocumentsPage() {
       url: imageUrl.startsWith('http') ? imageUrl : `${serverBaseUrl}${imageUrl}`,
       caption,
       page: pageNumber,
-      docId: documentId
+      docId: documentId,
+      chunkId
     });
   };
 
@@ -154,11 +155,11 @@ export default function DocumentsPage() {
                 onClick={async () => {
                   const title = `Explain Figure (Page ${lightboxFig.page})`;
                   await createNewSession(title, [lightboxFig.docId]);
-                  sessionStorage.setItem('auto_submit_query', `explain figure: ${lightboxFig.caption || 'figure'}`);
+                  sessionStorage.setItem('auto_submit_query', `[EXPLAIN_FIGURE: ${lightboxFig.chunkId}] Explain the figure: ${lightboxFig.caption || 'figure'}`);
                   setLightboxFig(null);
                   router.push('/chat');
                 }}
-                className="mt-1 w-full py-2 px-4 rounded-sm bg-background border border-neutral-border hover:border-primary/50 hover:text-primary text-slate-350 font-bold font-tech-mono text-xs uppercase tracking-wider transition-colors"
+                className="mt-1 w-full py-2 px-4 rounded-sm bg-background border border-neutral-border hover:border-primary/50 hover:text-primary text-slate-355 font-bold font-tech-mono text-xs uppercase tracking-wider transition-colors"
               >
                 Explain this figure
               </button>
