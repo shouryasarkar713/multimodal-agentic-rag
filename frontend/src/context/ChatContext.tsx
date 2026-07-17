@@ -30,8 +30,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
   const [sendingMessage, setSendingMessage] = useState<boolean>(false);
-  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [selectedDocumentIds, setSelectedDocumentIdsState] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const setSelectedDocumentIds = useCallback((update: string[] | ((prev: string[]) => string[]) | React.SetStateAction<string[]>) => {
+    setSelectedDocumentIdsState((prev) => {
+      const next = typeof update === 'function' ? (update as Function)(prev) : update;
+      if (typeof window !== 'undefined' && activeSessionId) {
+        localStorage.setItem(`session_docs_${activeSessionId}`, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, [activeSessionId]);
 
   // Fetch all chat sessions
   const fetchSessions = useCallback(async () => {
@@ -173,25 +183,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const stored = localStorage.getItem(`session_docs_${activeSessionId}`);
         if (stored) {
           try {
-            setSelectedDocumentIds(JSON.parse(stored));
+            setSelectedDocumentIdsState(JSON.parse(stored));
           } catch (e) {
-            setSelectedDocumentIds([]);
+            setSelectedDocumentIdsState([]);
           }
         } else {
-          setSelectedDocumentIds([]);
+          setSelectedDocumentIdsState([]);
         }
       } else {
-        setSelectedDocumentIds([]);
+        setSelectedDocumentIdsState([]);
       }
     }
   }, [activeSessionId]);
-
-  // Persist document selection scope changes to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined' && activeSessionId) {
-      localStorage.setItem(`session_docs_${activeSessionId}`, JSON.stringify(selectedDocumentIds));
-    }
-  }, [activeSessionId, selectedDocumentIds]);
 
   // Initial load
   useEffect(() => {
