@@ -12,7 +12,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
     createNewSession,
     deleteSession,
     setSelectedDocumentIds,
-    selectedDocumentIds,
   } = useChatContext();
 
   return (
@@ -32,14 +31,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>
-      </div>
-
-      {/* Visual Debug Panel */}
-      <div id="debug-panel" className="fixed bottom-4 right-4 bg-slate-900/90 border border-slate-800 p-4 rounded-xl max-w-sm z-50 text-[10px] font-mono text-slate-300 backdrop-blur-sm shadow-xl">
-        <div>Active Session: {activeSessionId || 'null'}</div>
-        <div>Selected Doc IDs: {JSON.stringify(selectedDocumentIds)}</div>
-        <div>localStorage keys: {JSON.stringify(typeof window !== 'undefined' ? Object.keys(localStorage).filter(k => k.startsWith('session_docs_')) : [])}</div>
-        <div>localStorage values: {JSON.stringify(typeof window !== 'undefined' ? Object.keys(localStorage).filter(k => k.startsWith('session_docs_')).map(k => `${k}=${localStorage.getItem(k)}`) : [])}</div>
       </div>
     </div>
   );
