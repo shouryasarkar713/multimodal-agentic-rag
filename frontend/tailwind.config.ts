@@ -9,16 +9,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0f172a", // slate-900
-        surface: "#1e293b",    // slate-800
-        textPrimary: "#f1f5f9", // slate-100
+        background: "#0b0f19",
+        surface: "#141a29",
+        textPrimary: "#f8fafc",
         primary: {
-          DEFAULT: "#6366f1",  // indigo-500
-          hover: "#4f46e5",    // indigo-600
-        }
+          DEFAULT: "#38bdf8",
+          hover: "#0ea5e9",
+        },
+        "neutral-border": "#2a354c",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "sans-serif"],
+        serif: ["var(--font-eb-garamond)", "serif"],
+        sans: ["var(--font-space-grotesk)", "sans-serif"],
+        mono: ["var(--font-jetbrains-mono)", "monospace"],
+      },
+      borderRadius: {
+        sm: "2px",
+        DEFAULT: "4px",
+        md: "4px",
+        lg: "4px",
+        xl: "4px",
+        "2xl": "4px",
+        "3xl": "4px",
+        full: "9999px",
       },
     },
   },
