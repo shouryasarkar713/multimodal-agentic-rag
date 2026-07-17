@@ -21,6 +21,19 @@ interface ChatContextType {
   submitQuery: (queryText: string) => Promise<void>;
 }
 
+const logDebug = (...args: any[]) => {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  console.log(msg);
+  if (typeof window !== 'undefined') {
+    const existing = sessionStorage.getItem('debug_logs') || '[]';
+    try {
+      const parsed = JSON.parse(existing);
+      parsed.push(msg);
+      sessionStorage.setItem('debug_logs', JSON.stringify(parsed));
+    } catch (e) {}
+  }
+};
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
@@ -78,29 +91,29 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Create a new session
   const createNewSession = useCallback(async (title?: string, initialDocIds?: string[]) => {
     try {
-      console.log('[DEBUG] createNewSession CALLED with title:', title, 'initialDocIds:', initialDocIds);
+      logDebug('[DEBUG] createNewSession CALLED with title:', title, 'initialDocIds:', initialDocIds);
       setError(null);
       const newSession = await api.createSession(title);
-      console.log('[DEBUG] api.createSession returned session:', newSession);
+      logDebug('[DEBUG] api.createSession returned session:', newSession);
       setSessions((prev) => [newSession, ...prev]);
       
       // Save initial document scope to localStorage for this new session ID
       if (initialDocIds && initialDocIds.length > 0) {
-        console.log('[DEBUG] Writing scope to localStorage for key:', `session_docs_${newSession.id}`, 'value:', initialDocIds);
+        logDebug('[DEBUG] Writing scope to localStorage for key:', `session_docs_${newSession.id}`, 'value:', initialDocIds);
         localStorage.setItem(`session_docs_${newSession.id}`, JSON.stringify(initialDocIds));
         setSelectedDocumentIdsState(initialDocIds);
       } else {
-        console.log('[DEBUG] Removing scope from localStorage for key:', `session_docs_${newSession.id}`);
+        logDebug('[DEBUG] Removing scope from localStorage for key:', `session_docs_${newSession.id}`);
         localStorage.removeItem(`session_docs_${newSession.id}`);
         setSelectedDocumentIdsState([]);
       }
       
-      console.log('[DEBUG] Setting activeSessionId to:', newSession.id);
+      logDebug('[DEBUG] Setting activeSessionId to:', newSession.id);
       setActiveSessionId(newSession.id);
       setMessages([]);
       return newSession.id;
     } catch (err: any) {
-      console.error('[DEBUG] createNewSession failed:', err);
+      logDebug('[DEBUG] createNewSession failed:', err);
       setError(err.message || 'Failed to create new session');
       return null;
     }
@@ -195,25 +208,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Load stored document selection scope when activeSessionId changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('[DEBUG] activeSessionId changed to:', activeSessionId);
+      logDebug('[DEBUG] activeSessionId changed to:', activeSessionId);
       if (activeSessionId) {
         const stored = localStorage.getItem(`session_docs_${activeSessionId}`);
-        console.log('[DEBUG] stored value from localStorage:', stored);
+        logDebug('[DEBUG] stored value from localStorage:', stored);
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
-            console.log('[DEBUG] successfully parsed scope:', parsed);
+            logDebug('[DEBUG] successfully parsed scope:', parsed);
             setSelectedDocumentIdsState(parsed);
           } catch (e) {
-            console.error('[DEBUG] error parsing stored scope:', e);
+            logDebug('[DEBUG] error parsing stored scope:', e);
             setSelectedDocumentIdsState([]);
           }
         } else {
-          console.log('[DEBUG] no stored scope found, setting to []');
+          logDebug('[DEBUG] no stored scope found, setting to []');
           setSelectedDocumentIdsState([]);
         }
       } else {
-        console.log('[DEBUG] activeSessionId is null/undefined, setting to []');
+        logDebug('[DEBUG] activeSessionId is null/undefined, setting to []');
         setSelectedDocumentIdsState([]);
       }
     }
@@ -222,10 +235,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Initial load
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('[DEBUG] ALL LOCALSTORAGE KEYS:', Object.keys(localStorage));
+      // Flush persisted debug logs from sessionStorage
+      const logs = sessionStorage.getItem('debug_logs');
+      if (logs) {
+        try {
+          const parsed = JSON.parse(logs);
+          parsed.forEach((l: string) => console.log('[PERSISTED DEBUG]', l));
+          sessionStorage.removeItem('debug_logs');
+        } catch (e) {}
+      }
+      
+      logDebug('[DEBUG] ALL LOCALSTORAGE KEYS:', Object.keys(localStorage));
       for (const k of Object.keys(localStorage)) {
         if (k.startsWith('session_docs_')) {
-          console.log('[DEBUG] Key:', k, 'Value:', localStorage.getItem(k));
+          logDebug('[DEBUG] Key:', k, 'Value:', localStorage.getItem(k));
         }
       }
     }
