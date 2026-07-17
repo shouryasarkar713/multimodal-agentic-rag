@@ -16,7 +16,7 @@ interface ChatContextType {
   setSelectedDocumentIds: React.Dispatch<React.SetStateAction<string[]>>;
   error: string | null;
   setError: (err: string | null) => void;
-  createNewSession: (title?: string) => Promise<string | null>;
+  createNewSession: (title?: string, initialDocIds?: string[]) => Promise<string | null>;
   deleteSession: (id: string) => Promise<void>;
   submitQuery: (queryText: string) => Promise<void>;
 }
@@ -76,11 +76,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Create a new session
-  const createNewSession = useCallback(async (title?: string) => {
+  const createNewSession = useCallback(async (title?: string, initialDocIds?: string[]) => {
     try {
       setError(null);
       const newSession = await api.createSession(title);
       setSessions((prev) => [newSession, ...prev]);
+      
+      // Save initial document scope to localStorage for this new session ID
+      if (initialDocIds && initialDocIds.length > 0) {
+        localStorage.setItem(`session_docs_${newSession.id}`, JSON.stringify(initialDocIds));
+        setSelectedDocumentIdsState(initialDocIds);
+      } else {
+        localStorage.removeItem(`session_docs_${newSession.id}`);
+        setSelectedDocumentIdsState([]);
+      }
+      
       setActiveSessionId(newSession.id);
       setMessages([]);
       return newSession.id;
