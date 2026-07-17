@@ -215,6 +215,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Initial load
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('[DEBUG] ALL LOCALSTORAGE KEYS:', Object.keys(localStorage));
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith('session_docs_')) {
+          console.log('[DEBUG] Key:', k, 'Value:', localStorage.getItem(k));
+        }
+      }
+    }
     fetchSessions();
   }, [fetchSessions]);
 
