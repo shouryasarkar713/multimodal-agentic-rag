@@ -262,7 +262,6 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
             }
         }
         
-        # We return the modified retrieved_chunks list AND the formatted context string
         return {
             "retrieved_chunks": ranked_chunks,
             "trace_steps": (state.get("trace_steps") or []) + [step]

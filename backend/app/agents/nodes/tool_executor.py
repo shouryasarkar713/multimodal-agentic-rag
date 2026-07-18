@@ -104,6 +104,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     # 2. Load and encode image
     # Resolve absolute image path
     rel_path = target_chunk.image_path or ""
+    # Normalize paths: if absolute, keep as is; if relative, prepend data directory
     abs_image_path = rel_path if os.path.isabs(rel_path) else os.path.join(settings.data_dir, "images", os.path.basename(rel_path))
 
     try:

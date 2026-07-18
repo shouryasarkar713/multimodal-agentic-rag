@@ -1,132 +1,113 @@
-# Prompts for LangGraph agent orchestration nodes
+import time
+import logging
+from typing import List
 
-QUERY_UNDERSTANDING_PROMPT = """You are a query understanding agent for a technical research paper assistant.
-Given the user's query and recent chat history, analyze the query and produce a JSON response with these fields:
-1. "intent": one of "paper_qa", "compare", "summarize", "action"
- - "paper_qa": The user is asking a factual question about one or more papers (e.g., "What loss function does paper X use?")
- - "compare": The user wants to compare findings, methods, or results across multiple papers (e.g., "How do papers X and Y differ in their approach?")
- - "summarize": The user wants a summary of a specific section, figure, or entire paper (e.g., "Summarize the methodology section"). IMPORTANT: Only classify as "summarize" if they explicitly target a single, specific paper, section, or figure to summarize (e.g. "summarize the firecast paper"). If the query is a general question about a topic, method, or domain across papers (e.g., "explain all the methods used in wildfire prediction"), classify it as "paper_qa" or "compare".
- - "action": The user wants to perform an action like "explain this figure" or "summarize this section" on a specific element
-2. "query_text": A cleaned, search-optimized version of the query. Remove conversational filler. Expand abbreviations.
-3. "target_papers": Array of paper titles or identifiers mentioned in the query. Empty array if not specific.
-4. "figure_ref": If the user references a specific figure (e.g., "Figure 3", "the architecture diagram"), extract it. Null otherwise.
-5. "section_ref": If the user references a specific section (e.g., "the experiments section", "Section 4.2"), extract it. Null otherwise.
-6. "retrieval_types": Array subset of ["text", "table", "image", "metadata"]. Decide which types of content to search:
- - "text": for general factual questions
- - "table": when the query involves numbers, comparisons, benchmarks, results
- - "image": when the query references figures, diagrams, architectures, or visual content
- - "metadata": when the query is about authors, dates, paper titles
+# Query Understanding Prompts
+INTENT_CLASSIFICATION_PROMPT = """You are an intent classifier for a research assistant assistant.
+Given a user query and the chat history, classify the user's intent into one of the following categories:
+- "paper_qa": General Q&A, searching for facts, concepts, or details within research papers.
+- "compare": Comparing findings, methodologies, results, or attributes across multiple papers.
+- "summarize": Summarizing specific papers, sections, or overall research corpus.
+- "action": Specific technical action requests like explaining a figure/table or summarizing a specific section.
 
 Chat History:
 {chat_history}
 
-User Query: {user_query}
+User Query: "{query}"
 
-Respond ONLY with valid JSON. No explanation."""
+Output ONLY the category name as a single word in lowercase (one of: paper_qa, compare, summarize, action). Do not write anything else."""
 
-MULTI_HOP_DECOMPOSITION_PROMPT = """You are a query decomposition agent. The user wants to compare or combine information from multiple research papers.
-Break down the following complex query into 2-5 simpler sub-queries, each targeting a specific paper or a specific aspect.
+QUERY_PARSING_PROMPT = """You are a query parser for a research assistant assistant.
+Extract structured metadata from the user's query.
 
-Rules:
-- Each sub-query should be independently answerable
-- Include the paper title or identifier in each sub-query if the user mentioned specific papers
-- If the user asks "compare X and Y", create sub-queries for X and Y separately, plus one for their similarities/differences
+For the key "retrieval_types": select any subset of ["text", "table", "image", "metadata"] that are relevant to satisfying the query.
+For the key "target_papers": extract any specific paper titles or authors mentioned.
+For the key "figure_ref": extract figure references if any (e.g. "Figure 3", "Fig 1").
+For the key "section_ref": extract section references if any (e.g. "Section 4.2", "Introduction").
 
-User Query: {user_query}
-Papers available in the system: {available_paper_titles}
+User Query: "{query}"
 
-Respond with a JSON array of strings. Example:
-["What method does Paper A use for object detection?", "What method does Paper B use for object detection?"]"""
+Respond with JSON ONLY:
+{{
+  "query_text": "cleaned search query",
+  "retrieval_types": ["text", "image"],
+  "target_papers": [],
+  "figure_ref": null,
+  "section_ref": null
+}}"""
 
-SUMMARIZATION_PROMPT = """You are a research paper summarization assistant.
-Summarize the following content from a research paper. Follow these rules:
-1. Be concise but complete — capture all key points
-2. Use bullet points for multiple findings
-3. Preserve technical accuracy — do not simplify formulas or method names
-4. At the end, add a "Key Takeaways" section with 2-3 bullet points
-5. Cite the source page numbers in parentheses, e.g., (p. 5)
+# Multi-Hop prompts
+QUERY_DECOMPOSITION_PROMPT = """You are an expert research analyst.
+Decompose a comparative user query into 2 or 3 distinct sub-queries that can be run independently against a database of research papers.
+Focus each sub-query on gathering specific factual evidence about one aspect or one paper.
 
-Content to summarize:
+Comparative Query: "{query}"
+
+Respond with JSON ONLY:
+{{
+  "sub_queries": [
+    "Sub-query 1",
+    "Sub-query 2"
+  ]
+}}"""
+
+# Generation prompts
+RAG_GENERATION_PROMPT = """You are a highly precise, technical academic research assistant.
+Answer the user's query based ONLY on the provided papers context. 
+
+Guidelines:
+1. Ground your answer strictly in the facts from the context. Do not extrapolate.
+2. Synthesize findings across papers if relevant.
+3. Cite your sources using bracketed numbers corresponding to the context items (e.g., [1], [2]).
+4. If the context does not contain enough information to answer, state: "The provided research corpus does not contain sufficient information to answer this query."
+
+Context:
 {context}
 
-Section/Figure being summarized: {target_description}"""
+User Query: "{query}"
 
-EVIDENCE_GRADING_PROMPT = """You are an evidence relevance grader for a research paper Q&A system.
-Given a user's question and a list of retrieved text chunks from research papers, score each chunk's relevance to answering the question.
+Respond with a professional, detailed, structured academic answer. Cite sources continuously."""
 
-Scoring rubric:
-5 = Directly answers the question with specific evidence
-4 = Highly relevant, contains key information for answering
-3 = Somewhat relevant, provides useful context
-2 = Marginally relevant, tangentially related
-1 = Not relevant to the question
+# Evaluation/Validation Prompts
+HALLUCINATION_GRADING_PROMPT = """You are a factual validator for research assistant answers.
+Compare the generated answer to the retrieved context chunks and verify if the answer introduces any facts not present in the context.
 
-User Question: {query}
+Retrieved Context:
+{context}
+
+Generated Answer:
+{generation}
+
+Identify any claims in the answer that are not supported by the context.
+Respond with JSON:
+{{
+  "hallucination": true/false,
+  "unsupported_claims": [
+    "List of unsupported claims if any"
+  ]
+}}"""
+
+# Evidence grading prompt
+EVIDENCE_GRADING_PROMPT = """You are an academic peer reviewer grading the relevance of retrieved research paper chunks for answering a specific query.
+Rate each chunk on a scale of 1.0 to 5.0:
+- 5.0: Extremely relevant, contains the exact answer or critical evidence.
+- 4.0: Highly relevant, contains context directly related to the answer.
+- 3.0: Somewhat relevant, general background info on the topic.
+- 1.0 - 2.0: Irrelevant, unrelated paper section or noise.
+
+User Query: "{query}"
 
 Retrieved Chunks:
 {chunks_formatted}
 
-Respond with a JSON array of objects: [{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}, ...]"""
+Grade each chunk by its index. If a chunk mentions an image or figure description that is relevant to the query, grade it high.
+If a chunk is a figure caption and the user is asking to explain that figure, score it 5.0.
 
-QUERY_REWRITE_PROMPT = """You are a query rewriting agent. The initial search did not find sufficiently relevant results.
-
-Original query: {original_query}
-Low-quality results received (not relevant enough):
-{low_scoring_chunks_summary}
-
-Rewrite the query to be more specific, use alternative technical terminology, or broaden the scope slightly. The goal is to find better matching content in research papers.
-
-Rules:
-- Keep the same intent
-- Try synonyms for technical terms
-- If the query was too specific, make it slightly broader
-- If the query was too broad, add specific technical terms
-
-Respond with ONLY the rewritten query string, nothing else."""
-
-GENERATION_PROMPT = """You are a technical research assistant. Answer the user's question using ONLY the provided source material. Follow these rules strictly:
-
-1. Base every claim on the numbered sources provided below. Cite sources inline using [1], [2], etc.
-   Example: "The Transformer encoder consists of 6 layers [1]."
-   Never cite a source number that is not listed in the "Sources" section below.
-2. Keep sentences simple and focused. Each sentence should make a single main claim and end with exactly one inline citation (e.g., [N]) corresponding to the source of that claim. Avoid combining multiple claims from different sources into a single sentence.
-3. If a source contains a relevant figure, reference it as [Figure from source N].
-4. If the sources do not contain enough information to fully answer the question, explicitly state what is missing and what you could answer.
-5. Do NOT fabricate information, statistics, or citations not present in the sources.
-6. Use technical language appropriate for an ML/CV/robotics audience.
-7. Structure your answer with clear paragraphs. Use markdown formatting (bold for key terms, bullet lists for comparisons).
-
-Sources:
-{formatted_context}
-
-Chat History:
-{chat_history}
-
-User Question: {user_query}
-
-Answer:"""
-
-HALLUCINATION_VALIDATION_PROMPT = """You are a hallucination detection agent. Your job is to verify that every factual claim in the generated answer is supported by the provided source material.
-
-Generated Answer:
-{generated_answer}
-
-Source Material (numbered):
-{formatted_context}
-
-For each factual claim in the answer, determine:
-1. Is it directly supported by one of the numbered sources?
-2. Which source number supports it?
-3. If not supported, flag it as "unsupported"
-
-Respond with JSON:
-{
- "claims": [
- {"claim": "The model uses AdamW optimizer", "supported": true, "source_number": 2},
- {"claim": "Accuracy improved by 15%", "supported": false, "source_number": null, "issue": "The source says 12%, not 15%"}
- ],
- "overall_supported": true/false
-}"""
+Respond with JSON ONLY:
+[
+  {{"chunk_index": 0, "score": 5.0, "reasoning": "contains the main equation requested"}},
+  {{"chunk_index": 1, "score": 2.0, "reasoning": "background information unrelated to the main query"}}
+]"""
 
 EXPLAIN_FIGURE_PROMPT = """You are a technical research assistant explaining a figure from a research paper.
 
