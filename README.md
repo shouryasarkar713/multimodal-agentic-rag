@@ -2,6 +2,8 @@
 
 A state-of-the-art engineering-locked RAG platform for analyzing complex technical research papers. Leveraging LangGraph, FastAPI, pgvector, and Next.js, this assistant processes text, extracts and parses figures, decomposes multi-paper comparative queries, and provides verifiable, citation-backed answers with visual context and complete execution tracing.
 
+**Live Demo**: [http://research-gpt.duckdns.org/](http://research-gpt.duckdns.org/)
+
 ---
 
 ## 🚀 Key Features
