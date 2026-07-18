@@ -5,7 +5,7 @@ Given the user's query and recent chat history, analyze the query and produce a 
 1. "intent": one of "paper_qa", "compare", "summarize", "action"
  - "paper_qa": The user is asking a factual question about one or more papers (e.g., "What loss function does paper X use?")
  - "compare": The user wants to compare findings, methods, or results across multiple papers (e.g., "How do papers X and Y differ in their approach?")
- - "summarize": The user wants a summary of a specific section, figure, or entire paper (e.g., "Summarize the methodology section")
+ - "summarize": The user wants a summary of a specific section, figure, or entire paper (e.g., "Summarize the methodology section"). IMPORTANT: Only classify as "summarize" if they explicitly target a single, specific paper, section, or figure to summarize (e.g. "summarize the firecast paper"). If the query is a general question about a topic, method, or domain across papers (e.g., "explain all the methods used in wildfire prediction"), classify it as "paper_qa" or "compare".
  - "action": The user wants to perform an action like "explain this figure" or "summarize this section" on a specific element
 2. "query_text": A cleaned, search-optimized version of the query. Remove conversational filler. Expand abbreviations.
 3. "target_papers": Array of paper titles or identifiers mentioned in the query. Empty array if not specific.
@@ -66,7 +66,7 @@ User Question: {query}
 Retrieved Chunks:
 {chunks_formatted}
 
-Respond with a JSON array of objects: [{{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}}, ...]"""
+Respond with a JSON array of objects: [{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}, ...]"""
 
 QUERY_REWRITE_PROMPT = """You are a query rewriting agent. The initial search did not find sufficiently relevant results.
 
@@ -120,13 +120,13 @@ For each factual claim in the answer, determine:
 3. If not supported, flag it as "unsupported"
 
 Respond with JSON:
-{{
+{
  "claims": [
- {{"claim": "The model uses AdamW optimizer", "supported": true, "source_number": 2}},
- {{"claim": "Accuracy improved by 15%", "supported": false, "source_number": null, "issue": "The source says 12%, not 15%"}}
+ {"claim": "The model uses AdamW optimizer", "supported": true, "source_number": 2},
+ {"claim": "Accuracy improved by 15%", "supported": false, "source_number": null, "issue": "The source says 12%, not 15%"}
  ],
  "overall_supported": true/false
-}}"""
+}"""
 
 EXPLAIN_FIGURE_PROMPT = """You are a technical research assistant explaining a figure from a research paper.
 

@@ -22,10 +22,10 @@ export default function Dashboard() {
     e.preventDefault();
     if (!quickQuery.trim()) return;
 
-    // Create a new session, set query, submit, and redirect
+    // Create a new session, store the query for auto-submission on chat page mount to prevent race conditions, and redirect
     const newSessionId = await createNewSession(quickQuery.substring(0, 30));
     if (newSessionId) {
-      submitQuery(quickQuery);
+      sessionStorage.setItem('auto_submit_query', quickQuery);
       router.push('/chat');
     }
   };
@@ -111,12 +111,12 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Quick Launcher Zone */}
+          {/* Quick Launcher */}
           <div className="bg-surface border border-neutral-border p-5 rounded-sm flex flex-col gap-4">
             <h3 className="font-bold text-[10px] uppercase text-slate-400 font-tech-mono tracking-widest border-b border-neutral-border/30 pb-2">
               Quick Launcher
             </h3>
-            <form onSubmit={handleQuickChatSubmit} className="relative">
+            <form onSubmit={handleQuickChatSubmit} className="relative font-sans">
               <input
                 type="text"
                 value={quickQuery}

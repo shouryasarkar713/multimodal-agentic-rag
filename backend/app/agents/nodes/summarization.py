@@ -21,10 +21,55 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
     
     start_time = time.time()
     
+    # Resolve target document scope if not provided (Bug Fix)
+    resolved_doc_ids = list(document_ids) if document_ids else []
+    
+    if not resolved_doc_ids:
+        target_papers = parsed_query.get("target_papers") or []
+        for paper_name in target_papers:
+            if paper_name:
+                stmt_find = select(Document.id).where(
+                    or_(
+                        Document.title.ilike(f"%{paper_name}%"),
+                        Document.filename.ilike(f"%{paper_name}%")
+                    )
+                )
+                res_find = await db.execute(stmt_find)
+                found_ids = res_find.scalars().all()
+                resolved_doc_ids.extend(found_ids)
+                
+        # If still empty, try matching parts of query/user_query to document titles
+        if not resolved_doc_ids:
+            user_query = state.get("user_query") or ""
+            stmt_find = select(Document.id, Document.title, Document.filename)
+            res_find = await db.execute(stmt_find)
+            all_docs = res_find.all()
+            for doc_id, doc_title, doc_filename in all_docs:
+                title_clean = (doc_title or "").lower()
+                fname_clean = (doc_filename or "").lower()
+                query_words = [w.lower() for w in user_query.split() if len(w) > 3]
+                if any((word in title_clean or word in fname_clean) for word in query_words):
+                    resolved_doc_ids.append(doc_id)
+                    break
+                    
+        # Fallback to the latest indexed document (excluding test.pdf)
+        if not resolved_doc_ids:
+            stmt_latest = select(Document.id).where(Document.filename != "test.pdf").order_by(Document.created_at.desc()).limit(1)
+            res_latest = await db.execute(stmt_latest)
+            latest_id = res_latest.scalar_one_or_none()
+            if latest_id:
+                resolved_doc_ids = [latest_id]
+            else:
+                stmt_any = select(Document.id).order_by(Document.created_at.desc()).limit(1)
+                res_any = await db.execute(stmt_any)
+                any_id = res_any.scalar_one_or_none()
+                if any_id:
+                    resolved_doc_ids = [any_id]
+                    
     # 1. Retrieve target chunks
     stmt = select(Chunk)
-    if document_ids:
-        stmt = stmt.where(Chunk.document_id.in_(document_ids))
+    if resolved_doc_ids:
+        stmt = stmt.where(Chunk.document_id.in_(resolved_doc_ids))
         
     target_desc = "entire paper"
     if section_ref:
@@ -50,8 +95,8 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
         # If no chunks found, fall back to first few pages
         if not chunks:
             stmt_fallback = select(Chunk)
-            if document_ids:
-                stmt_fallback = stmt_fallback.where(Chunk.document_id.in_(document_ids))
+            if resolved_doc_ids:
+                stmt_fallback = stmt_fallback.where(Chunk.document_id.in_(resolved_doc_ids))
             stmt_fallback = stmt_fallback.where(Chunk.content_type.in_(["text", "table"])).order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc()).limit(10)
             res_fallback = await db.execute(stmt_fallback)
             chunks = res_fallback.scalars().all()

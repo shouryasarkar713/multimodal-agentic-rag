@@ -172,47 +172,99 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                         page_number=1,
                         section_title="Metadata"
                     )
-                    retrieved_chunks_map[pseudo_id] = pseudo_chunk
+                    retrieved_chunks_map[pseudo_chunk.id] = pseudo_chunk
                     count += 1
                 chunk_counts_by_type["metadata"] = count
                 
-        # 4. Rerank using Cross-Encoder (only text and table chunks)
-        text_and_table_chunks = [c for c in retrieved_chunks_map.values() if c.content_type in ["text", "table"]]
-        ce_reranked = []
-        if text_and_table_chunks:
-            cross_encoder = get_cross_encoder()
-            pairs = [[query_text, c.content_text] for c in text_and_table_chunks]
-            scores = cross_encoder.predict(pairs)
-            for chunk, score in zip(text_and_table_chunks, scores):
-                ce_reranked.append((chunk, float(score)))
-            ce_reranked.sort(key=lambda x: x[1], reverse=True)
-            ce_reranked = [item[0] for item in ce_reranked[:10]] # Top 10 after reranking
-            
-        # Compile final retrieved chunks list (retaining images/metadata, updating text/tables)
-        final_retrieved = []
-        # Add reranked text/table chunks
-        final_retrieved.extend(ce_reranked)
-        # Add image chunks
-        final_retrieved.extend([c for c in retrieved_chunks_map.values() if c.content_type == "image"])
-        # Add metadata pseudo-chunks
-        final_retrieved.extend([c for c in retrieved_chunks_map.values() if c.id not in [x.id for x in final_retrieved]])
+        # 3. Merge all candidates
+        candidates = list(retrieved_chunks_map.values())
         
+        # 4. Run Cross-Encoder Re-ranking
+        ranked_chunks = []
+        if candidates:
+            cross_encoder = get_cross_encoder()
+            pairs = []
+            for c in candidates:
+                text_val = ""
+                if c.content_type == "image":
+                    text_val = c.image_caption or c.content_text or ""
+                elif c.content_type == "table":
+                    text_val = c.content_markdown or c.content_text or ""
+                else:
+                    text_val = c.content_text or ""
+                pairs.append((query_text, text_val))
+                
+            scores = cross_encoder.predict(pairs)
+            
+            # Map elements
+            scored_candidates = []
+            for c, score in zip(candidates, scores):
+                # If this is the directly requested figure chunk, force high score to guarantee it is ranked top (Bug 1)
+                if direct_chunk_id and c.id == direct_chunk_id:
+                    score_val = 10.0
+                else:
+                    score_val = float(score)
+                scored_candidates.append({
+                    "chunk": c,
+                    "score": score_val
+                })
+                
+            # Sort by score descending
+            scored_candidates.sort(key=lambda x: x["score"], reverse=True)
+            
+            # Keep top 15
+            top_scored = scored_candidates[:15]
+            
+            # Resolve document titles and filenames
+            all_doc_ids = list(set([item["chunk"].document_id for item in top_scored]))
+            doc_titles = {}
+            doc_filenames = {}
+            if all_doc_ids:
+                stmt_titles = select(Document.id, Document.title, Document.filename).where(Document.id.in_(all_doc_ids))
+                res_titles = await db.execute(stmt_titles)
+                for d_id, d_title, d_fname in res_titles.all():
+                    doc_titles[d_id] = d_title or d_fname
+                    doc_filenames[d_id] = d_fname
+ 
+            for item in top_scored:
+                c = item["chunk"]
+                score = item["score"]
+                image_url = None
+                if c.content_type == "image" and c.image_path:
+                    image_url = f"/api/images/{os.path.basename(c.image_path)}"
+ 
+                ranked_chunks.append({
+                    "id": str(c.id),
+                    "document_id": str(c.document_id),
+                    "document_title": doc_titles.get(c.document_id, "Unknown Document"),
+                    "filename": doc_filenames.get(c.document_id, "unknown.pdf"),
+                    "content_type": c.content_type,
+                    "content_text": c.content_text,
+                    "content_markdown": c.content_markdown,
+                    "image_caption": c.image_caption, # Preserve image caption metadata (Bug 1)
+                    "page_number": c.page_number,
+                    "section_title": c.section_title,
+                    "image_url": image_url,
+                    "relevance_score": score
+                })
+                
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Record trace step
         step = {
             "step_name": "retrieval_orchestrator",
             "input_summary": f"Retrieving for query: '{query_text}' with types {retrieval_types}",
-            "output_summary": f"Retrieved {len(final_retrieved)} chunks total (counts: {chunk_counts_by_type})",
+            "output_summary": f"Retrieved {len(ranked_chunks)} chunks, reranked. Types details: {chunk_counts_by_type}",
             "duration_ms": duration_ms,
             "metadata": {
-                "chunk_counts": chunk_counts_by_type,
-                "retrieved_ids": [str(c.id) for c in final_retrieved]
+                "counts_by_type": chunk_counts_by_type,
+                "after_rerank_count": len(ranked_chunks)
             }
         }
         
+        # We return the modified retrieved_chunks list AND the formatted context string
         return {
-            "retrieved_chunks": final_retrieved,
+            "retrieved_chunks": ranked_chunks,
             "trace_steps": (state.get("trace_steps") or []) + [step]
         }
         
@@ -220,10 +272,10 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
         logging.error(f"Error in retrieval_orchestrator_node: {e}")
         duration_ms = int((time.time() - start_time) * 1000)
         return {
-            "retrieved_chunks": list(retrieved_chunks_map.values()),
+            "retrieved_chunks": [],
             "trace_steps": (state.get("trace_steps") or []) + [{
                 "step_name": "retrieval_orchestrator",
-                "input_summary": f"Retrieving for query: '{query_text}' with types {retrieval_types}",
+                "input_summary": f"Retrieving for query: '{query_text}'",
                 "output_summary": f"Failed: {str(e)}",
                 "duration_ms": duration_ms,
                 "metadata": {"error": str(e)}

@@ -15,6 +15,48 @@ async def evidence_grader_node(state: AgentState) -> dict:
     
     start_time = time.time()
     
+    # Check for direct figure/chunk override (Bug 1)
+    direct_chunk_id = None
+    user_query = state.get("user_query") or ""
+    if "EXPLAIN_FIGURE:" in user_query:
+        try:
+            parts = user_query.split("EXPLAIN_FIGURE:")
+            if len(parts) > 1:
+                potential_id = parts[1].split("]")[0].strip()
+                import uuid
+                direct_chunk_id = uuid.UUID(potential_id)
+        except Exception:
+            pass
+
+    if direct_chunk_id:
+        updated_chunks = []
+        evidence_scores = []
+        for c in retrieved_chunks:
+            chunk_copy = dict(c)
+            c_id = chunk_copy.get("id")
+            if c_id and (str(c_id) == str(direct_chunk_id)):
+                score = 5.0
+            else:
+                score = 3.0
+            chunk_copy["evidence_score"] = score
+            updated_chunks.append(chunk_copy)
+            evidence_scores.append(score)
+            
+        duration_ms = int((time.time() - start_time) * 1000)
+        step = {
+            "step_name": "evidence_grader",
+            "input_summary": f"Direct figure explanation bypass for chunk {direct_chunk_id}",
+            "output_summary": f"Bypassed LLM grading. sufficient: True",
+            "duration_ms": duration_ms,
+            "metadata": {"bypass": True, "direct_chunk_id": str(direct_chunk_id)}
+        }
+        return {
+            "evidence_scores": evidence_scores,
+            "evidence_sufficient": True,
+            "retrieved_chunks": updated_chunks,
+            "trace_steps": (state.get("trace_steps") or []) + [step]
+        }
+        
     # 1. Take top 10 chunks to grade
     chunks_to_grade = retrieved_chunks[:10]
     

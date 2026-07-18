@@ -39,8 +39,14 @@ async def context_builder_node(state: AgentState) -> dict:
         
         # For image chunks, include caption and a custom note
         if ctype == "image":
-            caption = c.get("image_caption") or "No caption"
-            text_body = f"[Figure from page {page}: {caption}]"
+            actual_caption = c.get("content_text") or ""
+            context_snippet = c.get("image_caption") or ""
+            parts = []
+            if actual_caption.strip():
+                parts.append(f"Caption: {actual_caption}")
+            if context_snippet.strip():
+                parts.append(f"Context Snippet: {context_snippet}")
+            text_body = f"[Figure from page {page}]\n" + "\n".join(parts)
         else:
             text_body = c.get("content_markdown") or c.get("content_text") or ""
             
