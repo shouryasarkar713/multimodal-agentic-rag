@@ -7,7 +7,7 @@ A state-of-the-art engineering-locked RAG platform for analyzing complex technic
 ## 🚀 Key Features
 
 *   **Multimodal Ingestion**: Page-by-page text parsing (PyMuPDF) and table extraction (pdfplumber) into Markdown tables.
-*   **Visual Analysis**: Extracts figure image files and generates visual summaries using GPT-4o vision models, embedded with CLIP.
+*   **Visual Analysis & Fuzzy Figure Explanations**: Extracts figure image files and generates visual summaries using GPT-4o vision models, embedded with CLIP. Incorporates robust regex-based fuzzy figure matching (e.g., `Figure 3`, `Fig 3`) and direct visual context queries (`EXPLAIN_FIGURE: <uuid>`) mapped with GPT-4o vision analysis.
 *   **Stateful Agentic Routing**: Analyzes intent and routes queries to specific sub-graphs (`paper_qa`, `compare`, `summarize`, `action`).
 *   **Multi-Hop Query Decomposition**: Compares datasets, training regimes, and results across multiple papers side-by-side.
 *   **Hallucination Guardrails**: Employs double-loop validation to grade retrieved evidence and cross-examine generated claims before rendering.
@@ -40,7 +40,7 @@ Define the following environment variables:
 | `OPENAI_API_KEY` | OpenAI API credential. Used for chat generation, vision captioning, and embeddings. | `sk-proj-...` |
 | `DATABASE_URL` | Async connection string for PostgreSQL database. | `postgresql+asyncpc://postgres:postgres@db:5432/research_assistant` |
 | `API_KEY` | Secret token used to authorize requests between frontend and backend via the `X-API-Key` header. | `test-api-key-123` |
-| `LANGSMITH_API_KEY` | (Optional) API key for LangSmith tracing. | `lsv2_pt_...` |
+| `LANGSMITH_API_KEY` | (Optional) API key for LangSmith execution tracing. | `lsv2_pt_...` |
 | `LANGSMITH_PROJECT` | (Optional) Project name in LangSmith console. | `multimodal-agentic-rag` |
 | `DATA_DIR` | Absolute path for local-first uploads and extracted images. | `/data` |
 
@@ -48,9 +48,10 @@ Define the following environment variables:
 
 ## 📦 Getting Started & Run Instructions
 
-Follow these steps to spin up the system from a clean clone:
+### Local Run Instructions
+Follow these steps to spin up the system from a clean clone locally:
 
-### 1. Start the Containers
+#### 1. Start the Containers
 Ensure Docker and Docker Compose are installed, then build and run the services:
 ```bash
 docker compose up -d --build
@@ -58,13 +59,49 @@ docker compose up -d --build
 This launches three main services:
 *   `db`: PostgreSQL database on port `5432`
 *   `backend`: FastAPI server on `http://localhost:8000` (Swagger UI at `http://localhost:8000/docs`)
-*   `frontend`: Next.js application on `http://localhost:3000`
+*   `frontend`: Next.js application on `http://localhost:3000` (by default)
 
-### 2. Run Database Migrations
+#### 2. Run Database Migrations
 Once the database container is healthy, run the Alembic migrations to set up the schema:
 ```bash
 docker compose exec backend alembic upgrade head
 ```
+
+---
+
+### Cloud Deployment (AWS EC2 & Supabase)
+To host the application persistently in the cloud:
+
+#### 1. Set up a Static IP (Elastic IP)
+*   Allocate an **Elastic IP** in your AWS console and associate it with your running EC2 instance. This prevents the server IP from changing on reboots.
+
+#### 2. Configure Ports & API URLs
+*   In `docker-compose.yml`, update the `NEXT_PUBLIC_API_URL` environment variable for the frontend:
+    ```yaml
+    - NEXT_PUBLIC_API_URL=http://<YOUR_STATIC_IP>:8000/api
+    ```
+*   Map the frontend port to `80` (standard HTTP port) to access the app without typing a port number:
+    ```yaml
+    ports:
+      - "80:3000"
+    ```
+
+#### 3. Update AWS Firewall (Security Group)
+*   Open inbound TCP ports **80** (HTTP) and **8000** (Backend API) to anywhere (`0.0.0.0/0`) in your EC2 Security Group.
+
+#### 4. Configure a Custom Domain (Optional & Free)
+*   Register a free subdomain (e.g. `your-app.duckdns.org`) on [DuckDNS](https://www.duckdns.org) and set the target IP to your AWS Elastic IP.
+
+#### 5. Launch & Apply Migrations
+*   Build and launch the containers on the VM:
+    ```bash
+    git pull
+    docker compose up -d --build
+    ```
+*   Migrate the Supabase database:
+    ```bash
+    docker compose exec backend alembic upgrade head
+    ```
 
 ---
 
