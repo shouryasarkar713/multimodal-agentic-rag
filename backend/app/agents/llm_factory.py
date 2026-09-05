@@ -53,10 +53,17 @@ def get_generation_llm() -> Runnable:
     base_url = os.environ.get("LLM_OPENAI_API_BASE", settings.openai_api_base)
     model_name = os.environ.get("LLM_OPENAI_MODEL_NAME", settings.openai_model_name)
 
-    # Sanitize known unstable/EOL models on NVIDIA NIM
-    if "mistral" in model_name.lower() or "llama-3.2-11b-vision" in model_name.lower():
-        logging.info("Model '%s' is prone to connection resets on NVIDIA NIM. Using 'meta/llama-3.1-8b-instruct'.", model_name)
-        model_name = "meta/llama-3.1-8b-instruct"
+    # Sanitize known EOL / deprecated models on NVIDIA NIM and Google
+    is_nvidia = "nvidia" in (base_url or "").lower()
+    if any(k in model_name.lower() for k in ["llama", "mistral"]):
+        if is_nvidia:
+            logging.info("Model '%s' is EOL or unstable on NVIDIA NIM. Mapping to active model 'poolside/laguna-xs-2.1'.", model_name)
+            model_name = "poolside/laguna-xs-2.1"
+        else:
+            model_name = "gemini-3.6-flash"
+    elif "gemini" in model_name.lower() and ("1.5" in model_name or "latest" in model_name or "2.5" in model_name):
+        logging.info("Model '%s' is deprecated on Google API. Mapping to 'gemini-3.6-flash'.", model_name)
+        model_name = "gemini-3.6-flash"
 
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
     max_tokens_str = os.environ.get("LLM_MAX_TOKENS")
@@ -83,34 +90,33 @@ def get_generation_llm() -> Runnable:
 
     fallbacks: list[ChatOpenAI] = []
 
-    # Fallback 1: If using NVIDIA NIM, meta/llama-3.1-8b-instruct if primary is different
-    if "nvidia" in (base_url or "").lower() and model_name != "meta/llama-3.1-8b-instruct":
+    # Fallback 1: Minimax M3 on NVIDIA NIM
+    if is_nvidia and model_name != "minimaxai/minimax-m3":
         fallbacks.append(
             _build_chat_openai(
-                model="meta/llama-3.1-8b-instruct",
+                model="minimaxai/minimax-m3",
                 api_key=api_key,
                 base_url=base_url,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=45.0,
-                max_retries=2,
+                max_retries=1,
             )
         )
 
-    # Fallback 2: Google Gemini (if configured in settings)
+    # Fallback 2: Google Gemini 3.6 Flash (if configured in settings)
     gemini_key = settings.openai_api_key
-    gemini_base = settings.openai_api_base
+    gemini_base = settings.openai_api_base or "https://generativelanguage.googleapis.com/v1beta/openai/"
     if gemini_key and (gemini_key.startswith("AIzaSy") or "googleapis" in (gemini_base or "")):
-        gemini_model = settings.openai_model_name if "gemini" in (settings.openai_model_name or "") else "gemini-1.5-flash"
         fallbacks.append(
             _build_chat_openai(
-                model=gemini_model,
+                model="gemini-3.6-flash",
                 api_key=gemini_key,
-                base_url=gemini_base or "https://generativelanguage.googleapis.com/v1beta/openai/",
+                base_url=gemini_base,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 timeout=45.0,
-                max_retries=2,
+                max_retries=1,
             )
         )
 
