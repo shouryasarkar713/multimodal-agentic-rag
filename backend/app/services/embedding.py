@@ -66,7 +66,7 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
                             emb = item.get("embedding", [])
                             # Truncate to 1536 dimensions for pgvector compatibility (nv-embed-v1 returns 4096)
                             if len(emb) > 1536:
-                                  emb = emb[:1536]
+                                emb = emb[:1536]
                             embeddings.append(emb)
                         return embeddings
                     elif res.status_code == 429:
@@ -186,7 +186,10 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
 class GeminiCompatibilityEmbeddings(Embeddings):
     """Wrapper to support Google Gemini native embeddings with zero-padding to 1536 dimensions."""
     def __init__(self, model: str, openai_api_key: str):
-        self.model = model
+        if "gemini" in model.lower() or "004" in model.lower():
+            self.model = "text-embedding-004"
+        else:
+            self.model = model
         self.api_key = openai_api_key
 
     def _pad(self, vec: List[float]) -> List[float]:
@@ -246,8 +249,11 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                         break
                     else:
                         logging.error(f"Embedding error ({api_version}): {e}")
-
-        raise Exception(f"Failed to query Gemini embeddings after {max_retries} attempts. Last error: {last_error}")
+            else:
+                continue
+            break
+        else:
+            raise Exception(f"Failed to query Gemini embeddings after {max_retries} attempts. Last error: {last_error}")
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         # Process texts in batches to reduce API calls
@@ -373,8 +379,11 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                         break
                     else:
                         logging.error(f"Embedding async error ({api_version}): {e}")
-
-        raise Exception(f"Failed to query Gemini embeddings async after {max_retries} attempts. Last error: {last_error}")
+            else:
+                continue
+            break
+        else:
+            raise Exception(f"Failed to query Gemini embeddings async after {max_retries} attempts. Last error: {last_error}")
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
         # Process texts in batches to reduce API calls
@@ -497,6 +506,19 @@ def get_embeddings_model() -> Embeddings:
         api_key = os.environ.get("EMBEDDING_OPENAI_API_KEY", settings.openai_api_key)
         base_url = os.environ.get("EMBEDDING_OPENAI_API_BASE", settings.openai_api_base)
         model_name = os.environ.get("EMBEDDING_OPENAI_MODEL_NAME", settings.embedding_model_name)
+
+        # Fallback if deprecated NVIDIA model is specified
+        if "nv-embed-v1" in (model_name or ""):
+            logging.warning("nvidia/nv-embed-v1 is deprecated/retired. Falling back to Gemini text-embedding-004.")
+            model_name = "text-embedding-004"
+            base_url = settings.openai_api_base or "https://generativelanguage.googleapis.com/v1beta/openai/"
+            api_key = settings.openai_api_key
+
+        if _is_gemini_base_url(base_url):
+            if api_key and api_key.startswith("nvapi-"):
+                api_key = settings.openai_api_key
+            if "gemini" in (model_name or "").lower() or "004" in (model_name or ""):
+                model_name = "text-embedding-004"
 
         if (api_key != settings.openai_api_key
                 or base_url != settings.openai_api_base
