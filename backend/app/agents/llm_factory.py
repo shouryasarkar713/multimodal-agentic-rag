@@ -14,8 +14,8 @@ def _build_chat_openai(
     base_url: str | None = None,
     temperature: float = 0.0,
     max_tokens: int | None = None,
-    timeout: float = 300.0,
-    max_retries: int = 3,
+    timeout: float = 45.0,
+    max_retries: int = 2,
     **extra: Any,
 ) -> ChatOpenAI:
     """Internal helper to build a ChatOpenAI instance with consistent defaults."""
