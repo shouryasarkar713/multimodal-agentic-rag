@@ -8,19 +8,25 @@ async def context_builder_node(state: AgentState) -> dict:
     
     start_time = time.time()
     
-    # 1. Filter retrieved_chunks to only those with evidence_score >= 3, excluding author affiliation snippets
+    # 1. Filter retrieved_chunks to only those with evidence_score >= 3 (or image chunks), excluding author affiliation snippets
     filtered_chunks = []
     for c in retrieved_chunks:
-        if c.get("evidence_score", 1.0) < 3.0:
+        ev_score = c.get("evidence_score")
+        if ev_score is None:
+            ev_score = c.get("relevance_score", 3.5)
+            
+        if ev_score < 2.5 and c.get("content_type") != "image":
             continue
+            
         txt = (c.get("content_text") or c.get("content_markdown") or "").strip()
         # Skip small chunks (< 100 chars) that are just author names/affiliations/emails
-        if len(txt) < 100 and ("@" in txt or "google brain" in txt.lower() or "google research" in txt.lower()):
+        if len(txt) < 100 and ("@" in txt or "google brain" in txt.lower() or "google research" in txt.lower()) and c.get("content_type") != "image":
             continue
         filtered_chunks.append(c)
     
-    # 2. Sort by evidence_score descending
-    filtered_chunks.sort(key=lambda x: x.get("evidence_score", 0.0), reverse=True)
+    # 2. Sort by evidence_score/relevance_score descending
+    filtered_chunks.sort(key=lambda x: x.get("evidence_score", x.get("relevance_score", 0.0)), reverse=True)
+
     
     # 3. Truncate to fit within 12,000 tokens (estimate: len(text) / 4)
     budget = 12000
