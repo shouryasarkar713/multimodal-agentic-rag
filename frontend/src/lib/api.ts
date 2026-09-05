@@ -1,6 +1,6 @@
 import { Document, Session, Message, QueryTrace } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'test-api-key-123';
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -8,7 +8,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   if (API_KEY) {
     headers.append('X-API-Key', API_KEY);
   }
-  
+
   if (options?.body && !(options.body instanceof FormData)) {
     headers.append('Content-Type', 'application/json');
   }
@@ -30,6 +30,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Document Endpoints
   async uploadDocument(file: File): Promise<{ document_id: string; filename: string; status: string; message: string }> {
     const formData = new FormData();
     formData.append('file', file);
@@ -57,6 +58,7 @@ export const api = {
     return apiFetch(`/documents/${id}/figures`);
   },
 
+  // Session Endpoints
   async createSession(title?: string): Promise<Session> {
     return apiFetch('/sessions', {
       method: 'POST',
@@ -78,6 +80,7 @@ export const api = {
     return apiFetch(`/sessions/${sessionId}/messages`);
   },
 
+  // Chat Completion Endpoint
   async chat(req: { session_id: string; query: string; document_ids?: string[] }): Promise<{
     message_id: string;
     content: string;
@@ -94,10 +97,12 @@ export const api = {
     });
   },
 
+  // Observability Tracing Endpoint
   async getTrace(traceId: string): Promise<QueryTrace> {
     return apiFetch(`/traces/${traceId}`);
   },
 
+  // Markdown Export Endpoint
   async exportMarkdown(messageId: string): Promise<Blob> {
     const headers = new Headers();
     if (API_KEY) {
