@@ -52,8 +52,8 @@ def get_generation_llm() -> ChatOpenAI:
     base_url = os.environ.get("LLM_OPENAI_API_BASE", settings.openai_api_base)
     model_name = os.environ.get("LLM_OPENAI_MODEL_NAME", settings.openai_model_name)
     if "mistral" in model_name.lower():
-        logging.warning("Configured model '%s' is EOL on NVIDIA NIM. Falling back to 'deepseek-ai/deepseek-v4-flash-0731'.", model_name)
-        model_name = "deepseek-ai/deepseek-v4-flash-0731"
+        logging.warning("Configured model '%s' is EOL on NVIDIA NIM. Falling back to 'meta/llama-3.2-11b-vision-instruct'.", model_name)
+        model_name = "meta/llama-3.2-11b-vision-instruct"
     temperature = float(os.environ.get("LLM_TEMPERATURE", "0.0"))
     max_tokens_str = os.environ.get("LLM_MAX_TOKENS")
     max_tokens = int(max_tokens_str) if max_tokens_str else None

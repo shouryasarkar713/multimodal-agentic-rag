@@ -22,8 +22,19 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `HTTP ${res.status}`);
+    let errorDetail = `HTTP ${res.status}`;
+    try {
+      const errorJson = await res.json();
+      errorDetail = errorJson.detail || errorJson.message || JSON.stringify(errorJson);
+    } catch {
+      try {
+        const text = await res.text();
+        if (text) errorDetail = `${errorDetail}: ${text.slice(0, 300)}`;
+      } catch {
+        // ignore
+      }
+    }
+    throw new Error(errorDetail);
   }
 
   return res.json();
