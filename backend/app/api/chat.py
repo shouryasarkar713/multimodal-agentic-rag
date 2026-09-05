@@ -3,7 +3,7 @@ import uuid
 import logging
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.dependencies import get_db, verify_api_key
 from app.models.db import Session, Document, Message
@@ -101,6 +101,7 @@ async def chat_endpoint(
         content=body.query
     )
     db.add(user_msg)
+    session.updated_at = func.now()
     await db.commit()
 
     # 6. Initialize LangGraph State

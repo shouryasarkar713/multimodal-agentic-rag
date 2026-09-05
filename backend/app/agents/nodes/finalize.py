@@ -1,9 +1,10 @@
 import uuid
 import logging
 import time
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.db import Message, QueryTrace
+from app.models.db import Message, QueryTrace, Session
 from app.agents.state import AgentState
 
 async def finalize_node(state: AgentState, config: dict) -> dict:
@@ -42,7 +43,12 @@ async def finalize_node(state: AgentState, config: dict) -> dict:
             langsmith_url=config["configurable"].get("langsmith_url")
         )
         db.add(new_trace)
-        
+
+        # 3. Update session updated_at timestamp
+        sess_obj = await db.get(Session, uuid.UUID(session_id))
+        if sess_obj:
+            sess_obj.updated_at = func.now()
+
         # Commit transaction
         await db.commit()
         logging.info(f"Saved assistant message and trace_id {trace_id} successfully.")

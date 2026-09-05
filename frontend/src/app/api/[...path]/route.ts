@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const BACKEND_URL = process.env.INTERNAL_BACKEND_URL || 'http://backend:8000';
 
 async function handleProxy(req: NextRequest, { params }: { params: { path: string[] } }) {
@@ -20,6 +23,7 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
   const fetchOptions: RequestInit = {
     method: req.method,
     headers,
+    cache: 'no-store',
   };
 
   if (!['GET', 'HEAD'].includes(req.method)) {

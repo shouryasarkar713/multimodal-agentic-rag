@@ -17,10 +17,13 @@ class SessionListResponse(BaseModel):
     sessions: List[SessionResponse]
 
 class CitationItem(BaseModel):
+    chunk_id: uuid.UUID
     document_id: uuid.UUID
-    filename: str
-    page_number: int
-    content_text: str
+    document_title: str = "Document"
+    page_number: int = 1
+    section_title: Optional[str] = None
+    excerpt: str = ""
+    relevance_score: float = 5.0
 
 class MessageItem(BaseModel):
     id: uuid.UUID

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import { Session, Message } from '../lib/types';
 
@@ -38,7 +38,24 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('active_chat_session_id') || null;
+    }
+    return null;
+  });
+
+  const setActiveSessionId = useCallback((id: string | null) => {
+    setActiveSessionIdState(id);
+    if (typeof window !== 'undefined') {
+      if (id) {
+        localStorage.setItem('active_chat_session_id', id);
+      } else {
+        localStorage.removeItem('active_chat_session_id');
+      }
+    }
+  }, []);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingSessions, setLoadingSessions] = useState<boolean>(false);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
@@ -62,9 +79,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setLoadingSessions(true);
       const res = await api.getSessions();
       setSessions(res.sessions);
-      
-      // Auto-select latest session if none is selected and sessions exist
-      if (res.sessions.length > 0 && !activeSessionId) {
+
+      // Check if stored session ID exists in returned sessions
+      const storedId = typeof window !== 'undefined' ? localStorage.getItem('active_chat_session_id') : null;
+      if (storedId && res.sessions.some((s) => s.id === storedId)) {
+        if (activeSessionId !== storedId) {
+          setActiveSessionId(storedId);
+        }
+      } else if (res.sessions.length > 0 && !activeSessionId) {
         setActiveSessionId(res.sessions[0].id);
       }
     } catch (err: any) {
@@ -72,7 +94,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoadingSessions(false);
     }
-  }, [activeSessionId]);
+  }, [activeSessionId, setActiveSessionId]);
 
   // Load message history for active session
   const fetchMessages = useCallback(async (sessionId: string) => {
@@ -96,7 +118,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const newSession = await api.createSession(title);
       logDebug('[DEBUG] api.createSession returned session:', newSession);
       setSessions((prev) => [newSession, ...prev]);
-      
+
       // Save initial document scope to localStorage for this new session ID
       if (initialDocIds && initialDocIds.length > 0) {
         logDebug('[DEBUG] Writing scope to localStorage for key:', `session_docs_${newSession.id}`, 'value:', initialDocIds);
@@ -107,7 +129,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem(`session_docs_${newSession.id}`);
         setSelectedDocumentIdsState([]);
       }
-      
+
       logDebug('[DEBUG] Setting activeSessionId to:', newSession.id);
       setActiveSessionId(newSession.id);
       setMessages([]);
@@ -139,7 +161,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!queryText.trim()) return;
 
     let sessionId = activeSessionId;
-    
+
     // Auto-create session if none active
     if (!sessionId) {
       const createdId = await createNewSession(queryText.substring(0, 30));
@@ -154,7 +176,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       content: queryText,
       created_at: new Date().toISOString(),
     };
-    
+
     setMessages((prev) => [...prev, userMsg]);
     setSendingMessage(true);
     setError(null);
@@ -180,10 +202,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-      
+
       // Update session list to increment message counts / update ordering
       fetchSessions();
-      
+
     } catch (err: any) {
       setError(err.message || 'Error executing chat completion');
       const errorMsg: Message = {
@@ -244,7 +266,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           sessionStorage.removeItem('debug_logs');
         } catch (e) {}
       }
-      
+
       logDebug('[DEBUG] ALL LOCALSTORAGE KEYS:', Object.keys(localStorage));
       for (const k of Object.keys(localStorage)) {
         if (k.startsWith('session_docs_')) {

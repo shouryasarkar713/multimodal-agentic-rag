@@ -170,14 +170,17 @@ export function ChatMessage({ message }: ChatMessageProps) {
         }
         // Standard citation [N]
         const num = parseInt(part.slice(1, -1), 10);
-        const matchedCitation = message.citations?.[num - 1];
+        const cardTargetIdx = (message.citations && num - 1 < message.citations.length && num - 1 >= 0)
+          ? num - 1
+          : 0;
+        const matchedCitation = message.citations?.[num - 1] || (message.citations && message.citations.length > 0 ? message.citations[0] : null);
 
         if (matchedCitation) {
           return (
             <span
               key={idx}
               onClick={() => {
-                const el = document.getElementById(`citation-card-${num - 1}`);
+                const el = document.getElementById(`citation-card-${cardTargetIdx}`);
                 if (el) {
                   el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                   el.classList.add('ring-1', 'ring-primary');

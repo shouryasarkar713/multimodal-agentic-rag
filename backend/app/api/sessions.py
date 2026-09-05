@@ -1,4 +1,5 @@
 import uuid
+import json
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -88,25 +89,53 @@ async def get_session_messages(
     for m in messages:
         # Cast citations from JSONB to CitationItem
         citations = []
-        if m.citations:
-            for cit in m.citations:
-                # Use document_title as fallback if filename not present (backward compatibility)
-                filename = cit.get("filename") or cit.get("document_title") or "Unknown"
-                # Use "excerpt" as the key (not "content_text")
-                content_text = cit.get("excerpt") or cit.get("content_text") or ""
-                citations.append(CitationItem(
-                    document_id=uuid.UUID(cit["document_id"]),
-                    filename=filename,
-                    page_number=cit["page_number"],
-                    content_text=content_text
-                ))
-                
+        raw_citations = m.citations
+        if raw_citations:
+            if isinstance(raw_citations, str):
+                try:
+                    raw_citations = json.loads(raw_citations)
+                except Exception:
+                    raw_citations = []
+            if isinstance(raw_citations, list):
+                for cit in raw_citations:
+                    if not isinstance(cit, dict):
+                        continue
+                    try:
+                        raw_chunk_id = cit.get("chunk_id")
+                        raw_doc_id = cit.get("document_id")
+                        chunk_id = uuid.UUID(str(raw_chunk_id)) if raw_chunk_id else uuid.uuid4()
+                        doc_id = uuid.UUID(str(raw_doc_id)) if raw_doc_id else uuid.uuid4()
+
+                        citations.append(CitationItem(
+                            chunk_id=chunk_id,
+                            document_id=doc_id,
+                            document_title=str(cit.get("document_title") or cit.get("filename") or "Document"),
+                            page_number=int(cit.get("page_number") or 1),
+                            section_title=cit.get("section_title"),
+                            excerpt=str(cit.get("excerpt") or cit.get("content_text") or ""),
+                            relevance_score=float(cit.get("relevance_score") or 5.0)
+                        ))
+                    except Exception as err:
+                        logging.warning(f"Skipping malformed citation entry: {err}")
+
+        # Safely extract figure_refs
+        figure_refs = []
+        raw_figures = m.figure_refs
+        if raw_figures:
+            if isinstance(raw_figures, str):
+                try:
+                    raw_figures = json.loads(raw_figures)
+                except Exception:
+                    raw_figures = []
+            if isinstance(raw_figures, list):
+                figure_refs = raw_figures
+
         message_items.append(MessageItem(
             id=m.id,
             role=m.role,
             content=m.content,
-            citations=citations or None,
-            figure_refs=m.figure_refs,
+            citations=citations if citations else None,
+            figure_refs=figure_refs if figure_refs else None,
             confidence=m.confidence,
             trace_id=m.trace_id,
             created_at=m.created_at
