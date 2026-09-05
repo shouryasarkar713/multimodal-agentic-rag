@@ -21,7 +21,7 @@ async def retrieve_chunks(
 ):
     """Retrieve and re-rank the most relevant document chunks (text, tables, and images) for a query."""
     top_k = body.top_k if body.top_k is not None else 5
-    
+
     # Run the hybrid + multimodal retrieval and re-ranking pipeline
     ranked_chunks = await retrieve_and_rerank(
         session=db,
@@ -29,7 +29,7 @@ async def retrieve_chunks(
         document_id=body.document_id,
         top_k=top_k
     )
-    
+
     chunk_items = []
     for c in ranked_chunks:
         # Determine image_url for image chunks
@@ -37,7 +37,7 @@ async def retrieve_chunks(
         if c.content_type == "image" and c.image_path:
             filename = os.path.basename(c.image_path)
             image_url = f"/api/images/{filename}"
-            
+
         chunk_items.append(RetrievedChunkItem(
             chunk_id=c.id,
             document_id=c.document_id,
@@ -48,7 +48,7 @@ async def retrieve_chunks(
             section_title=c.section_title,
             image_url=image_url
         ))
-        
+
     return RetrieveResponse(chunks=chunk_items)
 
 @router.post("", response_model=ChatResponse, status_code=status.HTTP_200_OK)
@@ -63,7 +63,7 @@ async def chat_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Query cannot be empty"
         )
-        
+
     # 2. Validate session exists
     session = await db.get(Session, body.session_id)
     if not session:
@@ -71,7 +71,7 @@ async def chat_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Session not found"
         )
-        
+
     # 3. Validate document_ids (Risk 8 & 404 validation)
     if body.document_ids:
         for doc_id in body.document_ids:
@@ -86,13 +86,13 @@ async def chat_endpoint(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Document '{doc.title or doc.filename}' is still being processed. Please wait for processing to complete."
                 )
-                
+
     # 4. Load past chat history in session (prior to this query)
     stmt_history = select(Message).where(Message.session_id == body.session_id).order_by(Message.created_at.asc())
     res_history = await db.execute(stmt_history)
     history_msgs = res_history.scalars().all()
     chat_history_list = [{"role": m.role, "content": m.content} for m in history_msgs]
-    
+
     # 5. Persist user message row
     user_msg = Message(
         id=uuid.uuid4(),
@@ -102,7 +102,7 @@ async def chat_endpoint(
     )
     db.add(user_msg)
     await db.commit()
-    
+
     # 6. Initialize LangGraph State
     trace_id = uuid.uuid4()
     initial_state = {
@@ -129,12 +129,12 @@ async def chat_endpoint(
         "trace_steps": [],
         "trace_id": str(trace_id)
     }
-    
+
     # 7. Configure LangSmith Tracing
     langsmith_url = None
     if os.environ.get("LANGSMITH_API_KEY") and os.environ.get("LANGSMITH_PROJECT"):
         langsmith_url = f"https://smith.langchain.com/o/default/projects/p/{os.environ.get('LANGSMITH_PROJECT')}"
-        
+
     config = {
         "configurable": {
             "db": db,
@@ -142,24 +142,24 @@ async def chat_endpoint(
             "langsmith_url": langsmith_url
         }
     }
-    
+
     # 8. Run StateGraph invocation
     try:
         final_state = await compiled_graph.ainvoke(initial_state, config)
     except Exception as e:
         import httpx
         import openai
-        
+
         is_timeout = False
         if isinstance(e, httpx.TimeoutException) or isinstance(e, openai.APITimeoutError):
             is_timeout = True
         elif "timeout" in str(e).lower() or "timed out" in str(e).lower():
             is_timeout = True
-            
+
         if is_timeout:
             logging.error(f"LangGraph run timed out: {e}")
             await db.rollback()
-            
+
             # Record QueryTrace with error step
             from app.models.db import QueryTrace
             error_trace = QueryTrace(
@@ -179,19 +179,20 @@ async def chat_endpoint(
             )
             db.add(error_trace)
             await db.commit()
-            
+
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="The AI service is slow. Please try again."
             )
-            
-        logging.error(f"LangGraph run failed with error: {e}")
+
+        import traceback
+        logging.error(f"LangGraph run failed with error: {e}\n{traceback.format_exc()}")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Agent execution failed: {str(e)}"
         )
-        
+
     # 9. Retrieve the finalized assistant reply message from DB
     stmt_asst = (
         select(Message)
@@ -201,13 +202,13 @@ async def chat_endpoint(
     )
     res_asst = await db.execute(stmt_asst)
     asst_msg = res_asst.scalar_one_or_none()
-    
+
     if not asst_msg:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Agent execution failed: assistant message was not created."
         )
-        
+
     # 10. Parse citations and figures into schema formats
     citations_res = []
     for c in asst_msg.citations or []:
@@ -220,7 +221,7 @@ async def chat_endpoint(
             excerpt=c["excerpt"],
             relevance_score=c.get("relevance_score", 5.0)
         ))
-        
+
     figure_refs_res = []
     for f in asst_msg.figure_refs or []:
         figure_refs_res.append(FigureRefResponseItem(
@@ -230,7 +231,7 @@ async def chat_endpoint(
             caption=f["caption"],
             page_number=f["page_number"]
         ))
-        
+
     # Return structured Response
     return ChatResponse(
         message_id=asst_msg.id,
