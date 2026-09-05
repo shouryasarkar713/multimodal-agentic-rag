@@ -122,9 +122,10 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
         context_str = "\n\n".join(context_parts)
         
         # 2. Call LLM to summarize
-        prompt = SUMMARIZATION_PROMPT.format(
-            context=context_str,
-            target_description=target_desc
+        prompt = (
+            SUMMARIZATION_PROMPT
+            .replace("{context}", context_str)
+            .replace("{target_description}", str(target_desc))
         )
 
         llm = get_generation_llm()

@@ -15,10 +15,11 @@ async def query_understanding_node(state: AgentState) -> dict:
     # Format chat history
     chat_history_str = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history])
     
-    # Build prompt
-    prompt = QUERY_UNDERSTANDING_PROMPT.format(
-        chat_history=chat_history_str,
-        user_query=user_query
+    # Build prompt safely avoiding KeyError from any LaTeX or formulas in chat history
+    prompt = (
+        QUERY_UNDERSTANDING_PROMPT
+        .replace("{chat_history}", chat_history_str)
+        .replace("{user_query}", user_query)
     )
     
     start_time = time.time()
@@ -35,7 +36,6 @@ async def query_understanding_node(state: AgentState) -> dict:
         "retrieval_types": ["text"],
         "trace_steps": state.get("trace_steps") or []
     }
-    
     try:
         logging.info(f"[QueryUnderstanding] Analyzing user query: '{user_query}'")
         llm = get_generation_llm()

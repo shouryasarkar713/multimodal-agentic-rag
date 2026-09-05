@@ -25,9 +25,10 @@ async def query_rewriter_node(state: AgentState) -> dict:
         )
     low_scoring_chunks_summary = "\n".join(low_scoring_list) if low_scoring_list else "No chunks retrieved."
     
-    prompt = QUERY_REWRITE_PROMPT.format(
-        original_query=original_query,
-        low_scoring_chunks_summary=low_scoring_chunks_summary
+    prompt = (
+        QUERY_REWRITE_PROMPT
+        .replace("{original_query}", str(original_query))
+        .replace("{low_scoring_chunks_summary}", low_scoring_chunks_summary)
     )
     
     try:

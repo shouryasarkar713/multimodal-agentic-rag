@@ -122,30 +122,45 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                     # Already fetched requested figure chunk directly, bypass search to prevent semantic drift (Bug 1)
                     pass
                 else:
-                    # Two-pronged search: (a) CLIP query-image cosine similarity
-                    model, _ = get_clip_model()
-                    text_tokens = open_clip.tokenize([query_text])
-                    with torch.no_grad():
-                        text_features = model.encode_text(text_tokens)
-                        text_features /= text_features.norm(dim=-1, keepdim=True)
-                        query_clip_vector = text_features[0].cpu().numpy().tolist()
-                    
-                    stmt_clip = select(Chunk).where(Chunk.content_type == "image")
-                    if document_ids:
-                        stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
-                    stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(10)
-                    res_clip = await db.execute(stmt_clip)
-                    clip_results = res_clip.scalars().all()
-                    
-                    # (b) Caption dense text search
-                    stmt_caption = select(Chunk).where(Chunk.content_type == "image")
-                    if document_ids:
-                        stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
-                    stmt_caption = stmt_caption.order_by(Chunk.text_embedding.cosine_distance(query_embedding)).limit(10)
-                    res_caption = await db.execute(stmt_caption)
-                    caption_results = res_caption.scalars().all()
-                    
-                    merged = reciprocal_rank_fusion(clip_results, caption_results, k=60, limit=10)
+                    # 1. Fast caption dense text search (uses pre-computed query_embedding via pgvector in <10ms)
+                    caption_results = []
+                    try:
+                        stmt_caption = select(Chunk).where(Chunk.content_type == "image")
+                        if document_ids:
+                            stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
+                        stmt_caption = stmt_caption.order_by(Chunk.text_embedding.cosine_distance(query_embedding)).limit(10)
+                        res_caption = await db.execute(stmt_caption)
+                        caption_results = list(res_caption.scalars().all())
+                    except Exception as cap_err:
+                        logging.warning(f"Caption dense search failed: {cap_err}")
+
+                    # 2. Safe non-blocking CLIP query (only if model already loaded in memory, never block to download 600MB)
+                    clip_results = []
+                    from app.services.embedding import _clip_model
+                    if _clip_model is not None:
+                        try:
+                            text_tokens = open_clip.tokenize([query_text[:77]])
+                            with torch.no_grad():
+                                text_features = _clip_model.encode_text(text_tokens)
+                                text_features /= text_features.norm(dim=-1, keepdim=True)
+                                query_clip_vector = text_features[0].cpu().numpy().tolist()
+                            
+                            stmt_clip = select(Chunk).where(Chunk.content_type == "image")
+                            if document_ids:
+                                stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
+                            stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(10)
+                            res_clip = await db.execute(stmt_clip)
+                            clip_results = list(res_clip.scalars().all())
+                        except Exception as clip_err:
+                            logging.warning(f"CLIP search skipped: {clip_err}")
+
+                    if clip_results and caption_results:
+                        merged = reciprocal_rank_fusion(clip_results, caption_results, k=60, limit=10)
+                    elif caption_results:
+                        merged = caption_results
+                    else:
+                        merged = clip_results
+
                     for c in merged:
                         retrieved_chunks_map[c.id] = c
                     chunk_counts_by_type["image"] = len(merged)
@@ -187,7 +202,6 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
         # 4. Run Cross-Encoder Re-ranking
         ranked_chunks = []
         if candidates:
-            cross_encoder = get_cross_encoder()
             pairs = []
             for c in candidates:
                 text_val = ""
@@ -199,7 +213,12 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                     text_val = c.content_text or ""
                 pairs.append((query_text, text_val))
                 
-            scores = cross_encoder.predict(pairs)
+            try:
+                cross_encoder = get_cross_encoder()
+                scores = cross_encoder.predict(pairs)
+            except Exception as ce_err:
+                logging.warning(f"Cross-encoder scoring fallback: {ce_err}")
+                scores = [1.0] * len(candidates)
             
             # Map elements
             scored_candidates = []

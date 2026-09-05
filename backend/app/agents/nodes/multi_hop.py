@@ -33,9 +33,10 @@ async def multi_hop_decomposition_node(state: AgentState, config: dict) -> dict:
         logging.error(f"Error fetching titles in multi_hop: {e}")
         available_titles_str = ""
         
-    prompt = MULTI_HOP_DECOMPOSITION_PROMPT.format(
-        user_query=user_query,
-        available_paper_titles=available_titles_str
+    prompt = (
+        MULTI_HOP_DECOMPOSITION_PROMPT
+        .replace("{user_query}", user_query)
+        .replace("{available_paper_titles}", available_titles_str)
     )
     
     sub_queries = []

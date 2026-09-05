@@ -94,9 +94,10 @@ async def evidence_grader_node(state: AgentState) -> dict:
     chunks_formatted = "\n".join(formatted_list)
     
     try:
-        prompt = EVIDENCE_GRADING_PROMPT.format(
-            query=query_text,
-            chunks_formatted=chunks_formatted
+        prompt = (
+            EVIDENCE_GRADING_PROMPT
+            .replace("{query}", str(query_text))
+            .replace("{chunks_formatted}", chunks_formatted)
         )
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
@@ -148,15 +149,15 @@ async def evidence_grader_node(state: AgentState) -> dict:
             
         # 2. Sufficiency check:
         # - At least 3 chunks scored >= 4
-        # OR mean of top 5 chunks >= 3.5
         high_score_count = sum(1 for s in evidence_scores if s >= 4.0)
-        sorted_scores = sorted(evidence_scores, reverse=True)
-        top_5 = sorted_scores[:5]
-        mean_score = sum(top_5) / len(top_5) if top_5 else 0.0
         
-        is_sufficient = (high_score_count >= 3) or (mean_score >= 3.5)
+        # - Mean score of top 5 chunks >= 3.5
+        top_5_scores = sorted(evidence_scores, reverse=True)[:5]
+        mean_score = sum(top_5_scores) / len(top_5_scores) if top_5_scores else 0.0
         
-        # Fallback safeguard: if retry count already reached max (attempt >= 2), force sufficiency to avoid infinite loops
+        is_sufficient = (high_score_count >= 3) and (mean_score >= 3.5)
+        
+        # 3. Handle attempt capping
         if not is_sufficient and attempt >= 2:
             logging.info(f"Evidence insufficient but max attempt ({attempt}) reached. Forcing sufficiency.")
             is_sufficient = True
@@ -198,10 +199,10 @@ async def evidence_grader_node(state: AgentState) -> dict:
         
         step = {
             "step_name": "evidence_grader",
-            "input_summary": f"Grading {len(chunks_to_grade)} retrieved chunks",
-            "output_summary": f"Grading exception ({str(e)}). Applied fallback scores (sufficient: True).",
+            "input_summary": f"Grading retrieved chunks",
+            "output_summary": f"Failed (Fallback to sufficient): {str(e)}",
             "duration_ms": duration_ms,
-            "metadata": {"error": str(e), "fallback": True}
+            "metadata": {"error": str(e)}
         }
         
         return {
@@ -212,13 +213,7 @@ async def evidence_grader_node(state: AgentState) -> dict:
         }
 
 def check_evidence(state: AgentState) -> str:
-    """Conditional edge router based on evidence sufficiency and attempt count."""
-    attempt = state.get("retrieval_attempt", 0)
-    sufficient = state.get("evidence_sufficient", False)
-    
-    # If evidence sufficient OR already retried (attempt >= 2), proceed to answer generation
-    if sufficient or attempt >= 2:
+    """Conditional edge routing based on evidence sufficiency."""
+    if state.get("evidence_sufficient"):
         return "sufficient"
-    
-    # Otherwise, retry with query rewriting
     return "retry"
