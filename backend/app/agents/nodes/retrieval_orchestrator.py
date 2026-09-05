@@ -19,11 +19,16 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
     db: AsyncSession = config["configurable"]["db"]
     document_ids: Optional[List[uuid.UUID]] = config["configurable"].get("document_ids")
     
-    # 1. Determine query text
     query_text = state.get("rewritten_query") or state.get("parsed_query", {}).get("query_text") or state.get("user_query")
-    retrieval_types = state.get("retrieval_types") or ["text"]
+    retrieval_types = list(state.get("retrieval_types") or ["text"])
+    
+    # Auto-expand retrieval to include images if query touches visual, architectural, or structural concepts
+    visual_keywords = ["attention", "architecture", "mechanism", "figure", "diagram", "model", "layer", "transformer", "network", "overview", "structure", "dimension"]
+    if any(k in query_text.lower() for k in visual_keywords) and "image" not in retrieval_types:
+        retrieval_types.append("image")
     
     start_time = time.time()
+
     retrieved_chunks_map = {}
     chunk_counts_by_type = {}
     
@@ -113,30 +118,30 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                 chunk_counts_by_type["table"] = len(merged)
                 
             elif rtype == "image":
-                # Visual CLIP + Dense caption search
-                clip_model, clip_preprocess = get_clip_model()
-                tokens = open_clip.tokenize([query_text])
-                with torch.no_grad():
-                    query_features = clip_model.encode_text(tokens)
-                    query_features /= query_features.norm(dim=-1, keepdim=True)
-                    clip_query_embedding = query_features[0].cpu().numpy().tolist()
+                if direct_chunk_id and direct_chunk_id in retrieved_chunks_map:
+                    # Already fetched requested figure chunk directly, bypass search to prevent semantic drift (Bug 1)
+                    pass
+                else:
+                    # Two-pronged search: (a) CLIP query-image cosine similarity
+                    model, _ = get_clip_model()
+                    text_tokens = open_clip.tokenize([query_text])
+                    with torch.no_grad():
+                        text_features = model.encode_text(text_tokens)
+                        text_features /= text_features.norm(dim=-1, keepdim=True)
+                        query_clip_vector = text_features[0].cpu().numpy().tolist()
                     
-                stmt_clip = select(Chunk).where(Chunk.content_type == "image")
-                if document_ids:
-                    stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
-                stmt_clip = stmt_clip.where(Chunk.image_embedding.isnot(None))
-                stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(clip_query_embedding)).limit(10)
-                res_clip = await db.execute(stmt_clip)
-                clip_results = res_clip.scalars().all()
-                
-                # Text search on image captions
-                stmt_caption = select(Chunk).where(Chunk.content_type == "image")
-                if document_ids:
-                    stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
-                if query_embedding:
-                    stmt_caption = stmt_caption.where(Chunk.text_embedding.isnot(None)).order_by(
-                        Chunk.text_embedding.cosine_distance(query_embedding)
-                    ).limit(10)
+                    stmt_clip = select(Chunk).where(Chunk.content_type == "image")
+                    if document_ids:
+                        stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
+                    stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(10)
+                    res_clip = await db.execute(stmt_clip)
+                    clip_results = res_clip.scalars().all()
+                    
+                    # (b) Caption dense text search
+                    stmt_caption = select(Chunk).where(Chunk.content_type == "image")
+                    if document_ids:
+                        stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
+                    stmt_caption = stmt_caption.order_by(Chunk.text_embedding.cosine_distance(query_embedding)).limit(10)
                     res_caption = await db.execute(stmt_caption)
                     caption_results = res_caption.scalars().all()
                     
@@ -225,14 +230,35 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                 for d_id, d_title, d_fname in res_titles.all():
                     doc_titles[d_id] = d_title or d_fname
                     doc_filenames[d_id] = d_fname
- 
+
+            # Look up image chunks for pages in top_scored to ensure relevant figures are present
+            doc_pages = [(item["chunk"].document_id, item["chunk"].page_number) for item in top_scored if item["chunk"].page_number]
+            page_img_map = {}
+            if doc_pages:
+                doc_ids_set = list(set([dp[0] for dp in doc_pages]))
+                page_nums_set = list(set([dp[1] for dp in doc_pages]))
+                stmt_page_imgs = select(Chunk).where(
+                    Chunk.content_type == "image",
+                    Chunk.document_id.in_(doc_ids_set),
+                    Chunk.page_number.in_(page_nums_set)
+                )
+                res_page_imgs = await db.execute(stmt_page_imgs)
+                for p_img in res_page_imgs.scalars().all():
+                    page_img_map[(p_img.document_id, p_img.page_number)] = p_img
+
+            seen_chunk_ids = set()
             for item in top_scored:
                 c = item["chunk"]
+                seen_chunk_ids.add(c.id)
                 score = item["score"]
                 image_url = None
                 if c.content_type == "image" and c.image_path:
                     image_url = f"/api/images/{os.path.basename(c.image_path)}"
- 
+                elif (c.document_id, c.page_number) in page_img_map:
+                    p_img = page_img_map[(c.document_id, c.page_number)]
+                    if p_img.image_path:
+                        image_url = f"/api/images/{os.path.basename(p_img.image_path)}"
+
                 ranked_chunks.append({
                     "id": str(c.id),
                     "document_id": str(c.document_id),
@@ -241,15 +267,37 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                     "content_type": c.content_type,
                     "content_text": c.content_text,
                     "content_markdown": c.content_markdown,
-                    "image_caption": c.image_caption, # Preserve image caption metadata (Bug 1)
+                    "image_caption": c.image_caption, # Preserve image caption metadata
                     "page_number": c.page_number,
                     "section_title": c.section_title,
-                    "relevance_score": score,
                     "image_url": image_url,
-                    "image_path": c.image_path
+                    "relevance_score": score
                 })
+
+            # Also append any page_images that were not already in top_scored so context_builder & generator have them
+            for (d_id, p_num), p_img in page_img_map.items():
+                if p_img.id not in seen_chunk_ids:
+                    seen_chunk_ids.add(p_img.id)
+                    p_img_url = f"/api/images/{os.path.basename(p_img.image_path)}" if p_img.image_path else None
+                    ranked_chunks.append({
+                        "id": str(p_img.id),
+                        "document_id": str(p_img.document_id),
+                        "document_title": doc_titles.get(p_img.document_id, "Unknown Document"),
+                        "filename": doc_filenames.get(p_img.document_id, "unknown.pdf"),
+                        "content_type": "image",
+                        "content_text": p_img.content_text or p_img.image_caption or f"Figure from page {p_num}",
+                        "content_markdown": None,
+                        "image_caption": p_img.image_caption,
+                        "page_number": p_num,
+                        "section_title": p_img.section_title or "Figure",
+                        "image_url": p_img_url,
+                        "relevance_score": 4.5
+                    })
+
                 
         duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Record trace step
         step = {
             "step_name": "retrieval_orchestrator",
             "input_summary": f"Retrieving for query: '{query_text}' with types {retrieval_types}",
