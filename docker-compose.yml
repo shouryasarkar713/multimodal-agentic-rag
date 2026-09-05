@@ -62,7 +62,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=/api
       - NEXT_PUBLIC_API_KEY=test-api-key-123
-      - INTERNAL_API_URL=http://backend:8000/api/:path*
+      - INTERNAL_BACKEND_URL=http://backend:8000
     depends_on:
       - backend
 
