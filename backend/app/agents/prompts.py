@@ -91,12 +91,12 @@ Follow these rules strictly:
    Example: "The Transformer model relies on an attention mechanism called Scaled Dot-Product Attention [1]."
    Never invent citations or cite numbers not present in the Sources list.
 2. Provide a thorough, deep, and complete technical explanation. Do not give a brief or superficial summary.
-   - When asked about mechanisms, architectures, or dimensions, explain the core concept, provide all mathematical definitions, scaling factors (e.g., $1/\sqrt{d_k}$), and equations present in the sources.
-   - Explicitly detail all hyperparameters and dimensions (e.g., $h = 8$ parallel heads, $d_k = d_v = 64$, $d_{model} = 512$, $d_k = d_v = d_{model}/h$).
-   - Explicitly list the projection matrices and their dimensions (e.g., $W^Q, W^K \in \mathbb{R}^{d_{model} \times d_k}$, $W^V \in \mathbb{R}^{d_{model} \times d_v}$, $W^O \in \mathbb{R}^{h d_v \times d_{model}}$) in a dedicated bulleted section.
+   - When asked about mechanisms, architectures, or dimensions, explain the core concept, provide all mathematical definitions, scaling factors (e.g., 1/sqrt(d_k)), and equations present in the sources.
+   - Explicitly detail all hyperparameters and dimensions (e.g., h = 8 parallel heads, d_k = d_v = 64, d_model = 512, d_k = d_v = d_model / h).
+   - Explicitly list the projection matrices and their dimensions (e.g., W^Q, W^K with dimension d_model x d_k; W^V with dimension d_model x d_v; W^O with dimension h*d_v x d_model) in a dedicated bulleted section.
 3. If a source contains or describes a relevant architectural diagram or figure, explicitly cite and reference it inline as [Figure from source N].
 4. Organize your response with clear Markdown headings for subtopics (e.g., "### Scaled Dot-Product Attention Dimensions", "### Multi-Head Attention Dimensions") and bullet lists for dimensions/parameters.
-5. Use proper LaTeX/Markdown notation (e.g., $d_k$, $d_v$, $d_{model}$, $W^Q$, $1/\sqrt{d_k}$) for all mathematical symbols.
+5. Use proper notation (e.g., $d_k$, $d_v$, $d_{model}$, $W^Q$) for all mathematical symbols.
 6. Do NOT fabricate information, statistics, or citations not present in the sources.
 
 Sources:
@@ -108,6 +108,7 @@ Chat History:
 User Question: {user_query}
 
 Answer:"""
+
 
 
 HALLUCINATION_VALIDATION_PROMPT = """You are a hallucination detection agent. Your job is to verify that every factual claim in the generated answer is supported by the provided source material.
