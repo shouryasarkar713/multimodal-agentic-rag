@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { FileText, X } from 'lucide-react';
+import { FileText, ExternalLink, X } from 'lucide-react';
 import { Citation } from '../lib/types';
 
 interface CitationCardProps {
   citation: Citation;
+  index?: number;
 }
 
-export function CitationCard({ citation }: CitationCardProps) {
+export function CitationCard({ citation, index }: CitationCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -18,6 +19,11 @@ export function CitationCard({ citation }: CitationCardProps) {
       >
         <div className="flex items-start justify-between gap-2 mb-1.5 font-sans">
           <div className="flex items-center gap-1.5 min-w-0">
+            {index !== undefined && (
+              <span className="text-[9px] font-tech-mono font-bold text-primary bg-primary/10 border border-primary/20 px-1 py-0.5 rounded-sm shrink-0">
+                [{index}]
+              </span>
+            )}
             <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
             <span className="text-[11px] font-bold text-slate-200 truncate font-editorial-serif">
               {citation.document_title}
@@ -46,6 +52,11 @@ export function CitationCard({ citation }: CitationCardProps) {
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-2">
+                {index !== undefined && (
+                  <span className="text-xs font-tech-mono font-bold text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-sm shrink-0">
+                    [{index}]
+                  </span>
+                )}
                 <FileText className="w-5 h-5 text-primary" />
                 <div>
                   <h3 className="font-bold text-md text-slate-100 font-editorial-serif pr-6">

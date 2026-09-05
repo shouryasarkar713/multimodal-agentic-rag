@@ -144,6 +144,7 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
         import re
         citations = []
         seen_citations = set()
+        old_to_new_num = {}
         
         # Check standard [N] citations
         inline_cits = re.findall(r'\[(\d+)\]', answer)
@@ -153,6 +154,8 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
                 c = chunks[idx]
                 if str(c.id) not in seen_citations:
                     seen_citations.add(str(c.id))
+                    new_idx = len(citations) + 1
+                    old_to_new_num[num_str] = str(new_idx)
                     citations.append({
                         "chunk_id": str(c.id),
                         "document_id": str(c.document_id),
@@ -162,6 +165,20 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
                         "excerpt": (c.content_text or c.content_markdown or "")[:200],
                         "relevance_score": 5.0
                     })
+                elif num_str not in old_to_new_num:
+                    existing_new_idx = next((i + 1 for i, cit in enumerate(citations) if cit["chunk_id"] == str(c.id)), 1)
+                    old_to_new_num[num_str] = str(existing_new_idx)
+
+        def replace_inline_citations(match):
+            old_num = match.group(1)
+            if old_num in old_to_new_num:
+                return f"[{old_to_new_num[old_num]}]"
+            num = int(old_num)
+            if num <= 0 or num > len(chunks):
+                return "[citation not found]"
+            return match.group(0)
+
+        answer = re.sub(r'\[(\d+)\]', replace_inline_citations, answer)
                     
         # Also check for [p. N] citations and match to chunks on that page
         page_cits = re.findall(r'\[p\.?\s*(\d+)\]', answer, re.IGNORECASE)

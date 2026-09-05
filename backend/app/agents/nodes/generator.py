@@ -63,10 +63,11 @@ async def generator_node(state: AgentState) -> dict:
         response = await llm.ainvoke(prompt)
         answer = clean_thinking(response.content.strip())
         
-        # 3. Parse inline citations [N]
+        # 3. Parse inline citations [N] and renumber them sequentially starting from [1]
         citations = []
-        seen_citations = set()
-        
+        seen_chunk_ids = set()
+        old_to_new_num = {}
+
         # Regex to find [N]
         inline_cits = re.findall(r'\[(\d+)\]', answer)
         for num_str in inline_cits:
@@ -74,8 +75,10 @@ async def generator_node(state: AgentState) -> dict:
             if 0 <= idx < len(retrieved_chunks):
                 chunk = retrieved_chunks[idx]
                 chunk_id = chunk["id"]
-                if chunk_id not in seen_citations:
-                    seen_citations.add(chunk_id)
+                if chunk_id not in seen_chunk_ids:
+                    seen_chunk_ids.add(chunk_id)
+                    new_idx = len(citations) + 1
+                    old_to_new_num[num_str] = str(new_idx)
                     citations.append({
                         "chunk_id": chunk_id,
                         "document_id": chunk["document_id"],
@@ -86,7 +89,22 @@ async def generator_node(state: AgentState) -> dict:
                         "excerpt": (chunk.get("content_text") or chunk.get("image_caption") or "")[:200],
                         "relevance_score": chunk.get("relevance_score", 5.0)
                     })
-                    
+                elif num_str not in old_to_new_num:
+                    existing_new_idx = next((i + 1 for i, c in enumerate(citations) if c["chunk_id"] == chunk_id), 1)
+                    old_to_new_num[num_str] = str(existing_new_idx)
+
+        # Renumber the inline citations in answer: [15] -> [1], [4] -> [2], etc.
+        def replace_inline_citations(match):
+            old_num = match.group(1)
+            if old_num in old_to_new_num:
+                return f"[{old_to_new_num[old_num]}]"
+            num = int(old_num)
+            if num <= 0 or num > len(retrieved_chunks):
+                return "[citation not found]"
+            return match.group(0)
+
+        answer = re.sub(r'\[(\d+)\]', replace_inline_citations, answer)
+
         # 4. Parse figure references [Figure from source N]
         figure_refs = []
         seen_figures = set()
@@ -123,6 +141,7 @@ async def generator_node(state: AgentState) -> dict:
                     image_path = matched_chunk.get("image_url")
                     if not image_path and matched_chunk.get("image_path"):
                         image_path = f"/api/images/{os.path.basename(matched_chunk['image_path'])}"
+                        
                     figure_refs.append({
                         "chunk_id": chunk_id,
                         "document_id": matched_chunk["document_id"],
@@ -130,16 +149,6 @@ async def generator_node(state: AgentState) -> dict:
                         "caption": matched_chunk.get("image_caption") or matched_chunk.get("section_title") or "Figure reference",
                         "page_number": matched_chunk["page_number"]
                     })
-                    
-        # 5. Post-process to remove invalid citations (Risk 4 mitigation)
-        # Any [N] where N > len(retrieved_chunks) is replaced with "[citation not found]"
-        def replace_invalid_citations(match):
-            num = int(match.group(1))
-            if num <= 0 or num > len(retrieved_chunks):
-                return "[citation not found]"
-            return match.group(0)
-            
-        answer = re.sub(r'\[(\d+)\]', replace_invalid_citations, answer)
         
         # 6. Calculate confidence_score
         confidence = 1.0

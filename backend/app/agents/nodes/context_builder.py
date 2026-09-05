@@ -8,8 +8,16 @@ async def context_builder_node(state: AgentState) -> dict:
     
     start_time = time.time()
     
-    # 1. Filter retrieved_chunks to only those with evidence_score >= 3
-    filtered_chunks = [c for c in retrieved_chunks if c.get("evidence_score", 1.0) >= 3.0]
+    # 1. Filter retrieved_chunks to only those with evidence_score >= 3, excluding author affiliation snippets
+    filtered_chunks = []
+    for c in retrieved_chunks:
+        if c.get("evidence_score", 1.0) < 3.0:
+            continue
+        txt = (c.get("content_text") or c.get("content_markdown") or "").strip()
+        # Skip small chunks (< 100 chars) that are just author names/affiliations/emails
+        if len(txt) < 100 and ("@" in txt or "google brain" in txt.lower() or "google research" in txt.lower()):
+            continue
+        filtered_chunks.append(c)
     
     # 2. Sort by evidence_score descending
     filtered_chunks.sort(key=lambda x: x.get("evidence_score", 0.0), reverse=True)

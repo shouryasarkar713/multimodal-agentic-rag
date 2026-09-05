@@ -236,137 +236,158 @@ export function ChatMessage({ message }: ChatMessageProps) {
         return React.cloneElement(
           node,
           // @ts-ignore
-          {},
-          React.Children.map(node.props.children, renderWithCitations)
+          node.props,
+          React.Children.map(node.props.children, child => renderWithCitations(child))
         );
       }
     }
     return node;
   };
 
-  return (
-    <div
-      className={`group relative flex gap-4 px-6 py-6 transition-colors duration-200 ${
-        isUser
-          ? 'bg-slate-900/40 border-b border-border/20'
-          : 'bg-slate-900/10 border-b border-border/40 hover:bg-slate-900/20'
-      }`}
-    >
-      <div className="flex-shrink-0 pt-0.5">
-        <div
-          className={`flex h-9 w-9 items-center justify-center rounded-sm border ${
-            isUser
-              ? 'bg-slate-800/80 border-border text-slate-300'
-              : 'bg-primary/10 border-primary/30 text-primary shadow-[0_0_12px_rgba(0,240,255,0.15)]'
-          }`}
-        >
-          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-        </div>
+  const components = {
+    p: ({ children }: any) => <p className="leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium mb-4">{React.Children.map(children, child => renderWithCitations(child))}</p>,
+    li: ({ children }: any) => <li className="leading-relaxed font-sans text-slate-350 text-xs md:text-sm mb-1.5 list-disc ml-5">{React.Children.map(children, child => renderWithCitations(child))}</li>,
+    td: ({ children }: any) => <td className="border border-neutral-border/40 p-2.5 text-xs font-sans text-slate-250">{React.Children.map(children, child => renderWithCitations(child))}</td>,
+    th: ({ children }: any) => <th className="border border-neutral-border/45 bg-slate-900/50 p-2.5 text-xs font-tech-mono font-bold text-slate-350 uppercase tracking-wider">{React.Children.map(children, child => renderWithCitations(child))}</th>,
+    h1: ({ children }: any) => <h1 className="font-editorial-serif text-xl md:text-2xl font-bold text-slate-100 mt-6 mb-3 border-b border-neutral-border/20 pb-1">{children}</h1>,
+    h2: ({ children }: any) => <h2 className="font-editorial-serif text-lg md:text-xl font-bold text-slate-100 mt-5 mb-2.5">{children}</h2>,
+    h3: ({ children }: any) => <h3 className="font-editorial-serif text-base md:text-lg font-bold text-slate-200 mt-4 mb-2">{children}</h3>,
+    h4: ({ children }: any) => <h4 className="font-editorial-serif text-sm md:text-base font-bold text-slate-200 mt-3 mb-1.5">{children}</h4>,
+    table: ({ children }: any) => (
+      <div className="overflow-x-auto my-5 border border-neutral-border/40 rounded-sm">
+        <table className="min-w-full border-collapse text-left">{children}</table>
       </div>
+    ),
+    pre: ({ children }: any) => <pre className="bg-slate-950/80 border border-neutral-border/40 p-4 rounded-sm my-4 overflow-x-auto font-tech-mono text-xs text-slate-300">{children}</pre>,
+    code: ({ children }: any) => <code className="bg-slate-900/50 border border-neutral-border/20 px-1 py-0.5 rounded-sm font-tech-mono text-xs text-primary">{children}</code>
+  };
 
-      <div className="min-w-0 flex-1 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-tech-mono text-[11px] font-bold tracking-wider text-slate-300 uppercase">
-              {isUser ? 'Researcher' : 'Copilot Response'}
+  // Render text content and highlight citations/figures
+  const renderMessageBody = (text: string) => {
+    if (isUser) {
+      const isFigureQuery = text.includes('[EXPLAIN_FIGURE:');
+      const cleanText = text.replace(/\[EXPLAIN_FIGURE:\s*[a-f0-9\-]+\]\s*/i, '');
+      const displayText = formatMathFallback(cleanText);
+
+      return (
+        <div className="flex flex-col gap-1 items-end">
+          {isFigureQuery && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-primary/15 border border-primary/30 text-primary text-[8px] font-tech-mono font-bold uppercase tracking-wider mb-1">
+              Figure Analysis Query
             </span>
-            {!isUser && message.confidence !== undefined && (
-              <ConfidenceBadge score={message.confidence} />
-            )}
+          )}
+          <p className="whitespace-pre-wrap leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium text-right">
+            {displayText}
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={components}
+      >
+        {text}
+      </ReactMarkdown>
+    );
+  };
+
+  return (
+    <div className={`flex w-full gap-4 py-6 px-4 md:px-6 border-b border-neutral-border/40 transition-colors duration-150 ${
+      isUser 
+        ? 'bg-background/10 border-neutral-border/20 justify-end' 
+        : 'bg-surface/20 border-neutral-border/20 justify-start'
+    }`}>
+      <div className={`flex gap-4 max-w-4xl w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* Role Icon Avatar */}
+        <div className={`w-8 h-8 rounded-sm border flex items-center justify-center shrink-0 shadow-sm ${
+          isUser 
+            ? 'bg-slate-950 border-neutral-border text-slate-500' 
+            : 'bg-background border-primary/30 text-primary'
+        }`}>
+          {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+        </div>
+
+        {/* Message Content Container */}
+        <div className="flex flex-col gap-3 flex-1 min-w-0 font-sans">
+          {/* Header Metadata */}
+          {!isUser && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-[10px] text-primary font-tech-mono uppercase tracking-widest">
+                  Copilot Response
+                </span>
+                {message.confidence !== undefined && message.confidence !== null && (
+                  <ConfidenceBadge score={message.confidence} />
+                )}
+              </div>
+              
+              {/* Top Right Trace Trigger */}
+              {message.trace_id && (
+                <Link
+                  href={`/trace/${message.trace_id}`}
+                  className="inline-flex items-center gap-1 text-[9px] font-bold font-tech-mono text-slate-500 hover:text-primary transition-colors uppercase tracking-wider border border-neutral-border/25 bg-background/20 px-2 py-0.5 rounded-sm"
+                >
+                  <Activity className="w-3.5 h-3.5 text-primary/80" /> Trace node
+                </Link>
+              )}
+            </div>
+          )}
+
+          {isUser && (
+            <span className="font-bold text-[10px] text-slate-500 font-tech-mono uppercase tracking-widest">
+              Index query trigger
+            </span>
+          )}
+
+          {/* Text Body */}
+          <div className={`text-slate-200 leading-relaxed ${isUser ? 'border-l-2 border-primary/70 pl-4 py-1 max-w-2xl self-end italic font-grotesk-sans font-medium text-xs md:text-sm' : ''}`}>
+            {renderMessageBody(message.content)}
           </div>
-          {!isUser && message.trace_id && (
-            <Link
-              href={`/traces/${message.trace_id}`}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm border border-primary/20 bg-primary/5 hover:bg-primary/10 text-[10px] font-tech-mono text-primary transition-colors tracking-wider uppercase"
-              title="View Agent Execution Trace"
-            >
-              <Activity className="h-3 w-3" />
-              <span>Trace Node</span>
-            </Link>
+
+          {/* Side-Scrollable Citations List */}
+          {!isUser && hasCitations && (
+            <div className="flex flex-col gap-2 mt-3 border-t border-neutral-border/20 pt-4">
+              <span className="text-[10px] font-bold text-slate-500 font-tech-mono uppercase tracking-widest pl-1">
+                Source Citations ({message.citations?.length || 0})
+              </span>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
+                {message.citations?.map((cit, idx) => (
+                  <div id={`citation-card-${idx}`} key={cit.chunk_id || idx} className="transition-all duration-300">
+                    <CitationCard citation={cit} index={idx + 1} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Side-Scrollable Figures List */}
+          {!isUser && hasFigures && (
+            <div className="flex flex-col gap-2 mt-3 border-t border-neutral-border/20 pt-4">
+              <span className="text-[10px] font-bold text-slate-500 font-tech-mono uppercase tracking-widest pl-1">
+                Referenced Figures
+              </span>
+              <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
+                {message.figure_refs?.map((fig) => (
+                  <FigureViewer key={fig.chunk_id} figure={fig} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Footer Actions Row */}
+          {!isUser && (
+            <div className="flex items-center justify-between mt-4 border-t border-neutral-border/20 pt-3">
+              <div className="flex items-center gap-2">
+                <ExportButton messageId={message.id} />
+              </div>
+              <span className="text-[9px] font-tech-mono text-slate-500 font-bold select-none uppercase">
+                {message.created_at ? new Date(message.created_at).toLocaleTimeString() : ''}
+              </span>
+            </div>
           )}
         </div>
-
-        <div className="prose prose-invert max-w-none text-slate-300 text-sm leading-relaxed font-sans prose-headings:font-serif prose-headings:tracking-tight prose-headings:text-slate-100 prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-code:text-primary prose-code:bg-primary/5 prose-code:border prose-code:border-primary/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-sm prose-code:font-tech-mono prose-code:text-xs">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              p: ({ children }) => <p className="mb-3 leading-relaxed">{React.Children.map(children, renderWithCitations)}</p>,
-              li: ({ children }) => <li className="mb-1 leading-relaxed">{React.Children.map(children, renderWithCitations)}</li>,
-              h1: ({ children }) => <h1 className="text-xl font-bold mt-4 mb-2 text-slate-100">{React.Children.map(children, renderWithCitations)}</h1>,
-              h2: ({ children }) => <h2 className="text-lg font-semibold mt-3 mb-2 text-slate-200">{React.Children.map(children, renderWithCitations)}</h2>,
-              h3: ({ children }) => <h3 className="text-base font-semibold mt-2 mb-1 text-slate-200">{React.Children.map(children, renderWithCitations)}</h3>,
-              blockquote: ({ children }) => (
-                <blockquote className="border-l-2 border-primary/40 pl-4 my-2 italic text-slate-400 bg-primary/5 py-1 rounded-r-sm">
-                  {React.Children.map(children, renderWithCitations)}
-                </blockquote>
-              ),
-              table: ({ children }) => (
-                <div className="overflow-x-auto my-4 rounded-sm border border-border/40 bg-slate-900/40">
-                  <table className="min-w-full divide-y divide-border/40 text-left text-xs font-sans">
-                    {children}
-                  </table>
-                </div>
-              ),
-              thead: ({ children }) => <thead className="bg-slate-900/80 font-tech-mono text-slate-300 tracking-wider uppercase">{children}</thead>,
-              tbody: ({ children }) => <tbody className="divide-y divide-border/20">{children}</tbody>,
-              tr: ({ children }) => <tr className="hover:bg-slate-800/30 transition-colors">{children}</tr>,
-              th: ({ children }) => <th className="px-3 py-2 font-bold">{children}</th>,
-              td: ({ children }) => <td className="px-3 py-2 text-slate-300">{React.Children.map(children, renderWithCitations)}</td>,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
-        </div>
-
-        {/* Figures section */}
-        {hasFigures && (
-          <div className="pt-2">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-tech-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                Referenced Figures ({message.figure_refs!.length})
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {message.figure_refs!.map((fig, idx) => (
-                <FigureViewer
-                  key={idx}
-                  imagePath={fig.image_path}
-                  caption={fig.caption}
-                  pageNumber={fig.page_number}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Citations section */}
-        {hasCitations && (
-          <div className="pt-2 border-t border-border/20">
-            <div className="flex items-center gap-2 mb-2">
-              <FileText className="h-3.5 w-3.5 text-primary" />
-              <span className="font-tech-mono text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                Source Citations ({message.citations!.length})
-              </span>
-            </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border">
-              {message.citations!.map((cit, idx) => (
-                <div key={idx} id={`citation-card-${idx}`} className="flex-shrink-0 transition-all duration-300 rounded-sm">
-                  <CitationCard citation={cit} index={idx + 1} />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!isUser && (
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-3 text-[11px] font-tech-mono text-slate-500">
-              <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <ExportButton content={message.content} />
-          </div>
-        )}
       </div>
     </div>
   );
