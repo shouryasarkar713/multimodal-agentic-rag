@@ -20,6 +20,7 @@ from app.schemas.documents import (
     FigureItem
 )
 from app.services.ingestion import run_ingestion_pipeline
+from app.services.parsing import extract_metadata
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(verify_api_key)])
 
@@ -138,6 +139,25 @@ async def list_documents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(stmt)
     docs = result.scalars().all()
     
+    # Auto-backfill missing authors for ready documents if PDF exists
+    has_updates = False
+    for d in docs:
+        if (not d.authors or len(d.authors) == 0) and d.status == "ready":
+            pdf_path = d.file_path if (d.file_path and os.path.exists(d.file_path)) else f"/data/uploads/{d.id}.pdf"
+            if os.path.exists(pdf_path):
+                try:
+                    meta = extract_metadata(pdf_path)
+                    if meta.get("authors"):
+                        d.authors = meta["authors"]
+                        has_updates = True
+                except Exception as e:
+                    logging.warning(f"Auto-backfill authors failed for {d.id}: {e}")
+    if has_updates:
+        try:
+            await db.commit()
+        except Exception as e:
+            logging.warning(f"Failed to commit auto-backfilled authors: {e}")
+
     return DocumentListResponse(
         documents=[
             DocumentItem(

@@ -29,6 +29,93 @@ class ExtractedFigure:
     caption: Optional[str]
     section_title: Optional[str]
 
+def _clean_author_name(raw: str) -> Optional[str]:
+    # Strip footnote marks, digits, symbols
+    s = re.sub(r'[\*†‡§#~^]', '', raw)
+    s = re.sub(r'\d+', '', s)
+    s = re.sub(r'\s+', ' ', s).strip(' ,;:.-')
+    if not s or len(s) < 3 or len(s) > 50:
+        return None
+    # Filter out email-like or url-like strings
+    if '@' in s or 'http' in s or 'www' in s:
+        return None
+    # Filter out common affiliation / header words
+    lower = s.lower()
+    if any(w in lower for w in [
+        "university", "department", "institute", "laboratory", "school", "center",
+        "faculty", "college", "corporation", "google", "meta", "microsoft", "amazon",
+        "deepmind", "research", "abstract", "introduction", "arxiv", "preprint",
+        "equal contribution", "toronto", "brain"
+    ]):
+        return None
+    # Must have 2 to 5 words (First [Middle] Last)
+    words = s.split()
+    if 2 <= len(words) <= 5:
+        # Check that words look like capitalized name parts or initials
+        if all(w[0].isupper() or w.lower() in ['de', 'van', 'von', 'der', 'al', 'el', 'da', 'di'] for w in words if w):
+            return s
+    return None
+
+def extract_authors_from_first_page(first_page: fitz.Page, title: str) -> Optional[List[str]]:
+    """Extract author names from page 1 text blocks between title and abstract."""
+    try:
+        blocks = first_page.get_text("dict").get("blocks", [])
+        title_lower = title.lower()
+
+        found_title = False
+        candidates = []
+
+        for block in blocks:
+            if "lines" not in block:
+                continue
+            for line in block["lines"]:
+                line_spans = line.get("spans", [])
+                line_text = "".join(span.get("text", "") for span in line_spans).strip()
+                if not line_text:
+                    continue
+
+                line_lower = line_text.lower()
+
+                # If we encounter "Abstract", stop extracting authors
+                if re.match(r'^(?:abstract|summary)\b', line_text, re.IGNORECASE):
+                    return candidates[:12] if candidates else None
+
+                # Check if this line is part of the title
+                if not found_title:
+                    title_words = [w for w in re.sub(r'[^a-zA-Z0-9\s]', '', title_lower).split() if len(w) > 3]
+                    if any(w in line_lower for w in title_words) or (title_lower and line_lower in title_lower):
+                        found_title = True
+                    continue
+
+                # Skip if line contains title text
+                if line_lower in title_lower or title_lower in line_lower:
+                    continue
+
+                # Check if line looks like affiliations or emails
+                is_affiliation = any(w in line_lower for w in [
+                    "university", "department", "institute", "google", "research", "laborator",
+                    "college", "school", "faculty", "hospital", "center", "centre", "division",
+                    "@", "http", "github", "correspond", "equal contribution", "work done while"
+                ])
+                if is_affiliation:
+                    continue
+
+                # Author names might be separate spans or comma-separated
+                for span in line_spans:
+                    txt = span.get("text", "").strip()
+                    if txt:
+                        parts = re.split(r'[,;]|\band\b', txt)
+                        for p in parts:
+                            cleaned = _clean_author_name(p)
+                            if cleaned and cleaned not in candidates:
+                                candidates.append(cleaned)
+
+        if candidates:
+            return candidates[:12]
+    except Exception as e:
+        logging.warning(f"Failed to extract authors from first page: {e}")
+    return None
+
 def extract_metadata(pdf_path: str) -> Dict[str, Any]:
     """Extract metadata from PDF: title, authors, total_pages."""
     logging.info(f"Extracting metadata from {pdf_path}")
@@ -70,6 +157,10 @@ def extract_metadata(pdf_path: str) -> Dict[str, Any]:
         else:
             authors = [author_str.strip()]
             
+    # Fallback author extraction from page 1 if PDF metadata is missing
+    if not authors and len(doc) > 0:
+        authors = extract_authors_from_first_page(doc[0], title)
+
     doc.close()
     return {
         "title": title,
