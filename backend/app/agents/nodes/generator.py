@@ -71,7 +71,7 @@ async def generator_node(state: AgentState) -> dict:
         old_to_new_num = {}
 
         # Collect all referenced source numbers in order of appearance
-        ref_matches = re.finditer(r'\[(?:Figure from (?:source\s*)?)?(\d+)\]', answer, re.IGNORECASE)
+        ref_matches = re.finditer(r'\[(?:Figure(?:\s*\d+)?\s*from\s*(?:source\s*)?)?(\d+)\]', answer, re.IGNORECASE)
         for m in ref_matches:
             num_str = m.group(1)
             idx = int(num_str) - 1
@@ -136,9 +136,11 @@ async def generator_node(state: AgentState) -> dict:
                             "page_number": c.get("page_number", 1)
                         })
 
-        # Also capture any explicit [Figure from source N] that points to an image
-        figure_matches = re.findall(r'\[Figure from source (\d+)\]', answer, re.IGNORECASE)
-        for num_str in figure_matches:
+        # Also capture any explicit [Figure ... from source N] that points to an image
+        figure_matches = re.finditer(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', answer, re.IGNORECASE)
+        for m in figure_matches:
+            fig_label_num = m.group(1)
+            num_str = m.group(2)
             idx = int(num_str) - 1
             if 0 <= idx < len(retrieved_chunks):
                 chunk = retrieved_chunks[idx]
@@ -149,22 +151,26 @@ async def generator_node(state: AgentState) -> dict:
                     if not img_path and chunk.get("image_path"):
                         img_path = f"/api/images/{os.path.basename(chunk['image_path'])}"
                     if img_path:
+                        cap = chunk.get("image_caption") or chunk.get("section_title") or f"Figure {fig_label_num or ''} from page {chunk.get('page_number')}"
                         figure_refs.append({
                             "chunk_id": chunk_id,
                             "document_id": chunk["document_id"],
                             "image_path": img_path,
-                            "caption": chunk.get("image_caption") or chunk.get("section_title") or f"Figure from page {chunk.get('page_number')}",
+                            "caption": cap.strip(),
                             "page_number": chunk.get("page_number", 1)
                         })
 
         # 5. Renumber citations in answer text:
-        # First renumber [Figure from source N]
+        # First renumber [Figure ... from source N]
         def replace_fig_citations(match):
-            old_num = match.group(1)
+            prefix = match.group(1) or ""
+            old_num = match.group(2)
             new_num = old_to_new_num.get(old_num, old_num)
+            if prefix.strip():
+                return f"[Figure {prefix.strip()} from source {new_num}]"
             return f"[Figure from source {new_num}]"
 
-        answer = re.sub(r'\[Figure from source (\d+)\]', replace_fig_citations, answer, flags=re.IGNORECASE)
+        answer = re.sub(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', replace_fig_citations, answer, flags=re.IGNORECASE)
 
         # Next renumber standard inline citations [N]
         def replace_inline_citations(match):
@@ -176,7 +182,7 @@ async def generator_node(state: AgentState) -> dict:
                 return "[citation not found]"
             return match.group(0)
 
-        answer = re.sub(r'(?<!Figure from source )\[(\d+)\]', replace_inline_citations, answer, flags=re.IGNORECASE)
+        answer = re.sub(r'(?<!Figure\s)(?<!from source )\[(\d+)\]', replace_inline_citations, answer, flags=re.IGNORECASE)
 
         
         # 6. Calculate confidence_score

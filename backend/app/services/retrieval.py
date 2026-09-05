@@ -103,38 +103,38 @@ async def image_clip_search(
     document_id: Optional[uuid.UUID] = None,
     limit: int = 10
 ) -> List[Chunk]:
-    """Embed query text using CLIP and retrieve semantically similar figure images."""
-    model, _ = get_clip_model()
-    
-    # Tokenize and encode query text using CLIP
-    text_tokens = open_clip.tokenize([query_text])
-    with torch.no_grad():
-        text_features = model.encode_text(text_tokens)
-        # Normalize CLIP query vector
-        text_features /= text_features.norm(dim=-1, keepdim=True)
-        query_clip_vector = text_features[0].cpu().numpy().tolist()
-        
-    # Check total chunks for Risk 10
-    from sqlalchemy import text
-    count_stmt = select(func.count(Chunk.id))
-    if document_id:
-        count_stmt = count_stmt.where(Chunk.document_id == document_id)
-    count_res = await session.execute(count_stmt)
-    total_chunks = count_res.scalar() or 0
-    
-    if total_chunks >= 500:
-        await session.execute(text("SET LOCAL ivfflat.probes = 20"))
-        logging.info(f"IVFFlat index active for image search: set ivfflat.probes = 20 (total chunks = {total_chunks})")
-    else:
-        logging.info(f"Brute-force scan active for image search: bypassing IVFFlat probes (total chunks = {total_chunks} < 500)")
+    """Embed query text using CLIP if available, or fall back to caption dense search."""
+    from app.services.embedding import _clip_model
+    if _clip_model is not None:
+        try:
+            text_tokens = open_clip.tokenize([query_text[:77]])
+            with torch.no_grad():
+                text_features = _clip_model.encode_text(text_tokens)
+                text_features /= text_features.norm(dim=-1, keepdim=True)
+                query_clip_vector = text_features[0].cpu().numpy().tolist()
+                
+            stmt = select(Chunk).where(Chunk.content_type == "image")
+            if document_id:
+                stmt = stmt.where(Chunk.document_id == document_id)
+            stmt = stmt.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(limit)
+            res = await session.execute(stmt)
+            return list(res.scalars().all())
+        except Exception as e:
+            logging.warning(f"CLIP search failed in image_clip_search: {e}")
 
-    stmt = select(Chunk).where(Chunk.content_type == "image")
-    if document_id:
-        stmt = stmt.where(Chunk.document_id == document_id)
-        
-    stmt = stmt.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(limit)
-    res = await session.execute(stmt)
-    return list(res.scalars().all())
+    # Fallback to caption dense search using text embeddings
+    try:
+        embeddings_model = get_embeddings_model()
+        query_emb = await embeddings_model.aembed_query(query_text)
+        stmt = select(Chunk).where(Chunk.content_type == "image")
+        if document_id:
+            stmt = stmt.where(Chunk.document_id == document_id)
+        stmt = stmt.order_by(Chunk.text_embedding.cosine_distance(query_emb)).limit(limit)
+        res = await session.execute(stmt)
+        return list(res.scalars().all())
+    except Exception as e:
+        logging.warning(f"Caption dense search failed in image_clip_search: {e}")
+        return []
 
 def rerank_candidates(
     query: str,

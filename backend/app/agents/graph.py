@@ -42,7 +42,7 @@ graph.set_entry_point("query_understanding")
 
 # Standard Edges
 graph.add_edge("query_understanding", "intent_router")
-graph.add_edge("multi_hop_decomposition", "retrieval_orchestrator")
+graph.add_edge("multi_hop_decomposition", "evidence_grader")
 graph.add_edge("retrieval_orchestrator", "evidence_grader")
 graph.add_edge("query_rewriter", "retrieval_orchestrator")
 graph.add_edge("context_builder", "generator")

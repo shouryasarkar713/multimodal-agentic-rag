@@ -143,11 +143,12 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
     doc = await db.get(Document, target_chunk.document_id)
     doc_title = doc.title if doc else "Document"
 
-    prompt = EXPLAIN_FIGURE_PROMPT.format(
-        document_title=doc_title,
-        page_number=target_chunk.page_number,
-        caption=target_chunk.image_caption or "No caption",
-        surrounding_text=surrounding_text
+    prompt = (
+        EXPLAIN_FIGURE_PROMPT
+        .replace("{document_title}", str(doc_title))
+        .replace("{page_number}", str(target_chunk.page_number))
+        .replace("{caption}", str(target_chunk.image_caption or "No caption"))
+        .replace("{surrounding_text}", surrounding_text)
     )
 
     # 4. Invoke LLM with multimodal message
@@ -221,9 +222,10 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
         context_parts.append(f"[{i+1}] Page {c.page_number} ({c.section_title}): {c.content_text or ''}")
     context_str = "\n\n".join(context_parts)
 
-    prompt = SUMMARIZATION_PROMPT.format(
-        context=context_str,
-        target_description=f"Section: {section_ref}"
+    prompt = (
+        SUMMARIZATION_PROMPT
+        .replace("{context}", context_str)
+        .replace("{target_description}", f"Section: {section_ref}")
     )
 
     # Resolve titles
