@@ -262,12 +262,16 @@ class GeminiCompatibilityEmbeddings(Embeddings):
 
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            payload_parts = [{"text": text} for text in batch]
             payload = {
-                "model": f"models/{self.model}",
-                "content": {
-                    "parts": payload_parts
-                }
+                "requests": [
+                    {
+                        "model": f"models/{self.model}",
+                        "content": {
+                            "parts": [{"text": text}]
+                        }
+                    }
+                    for text in batch
+                ]
             }
 
             import httpx
@@ -278,9 +282,9 @@ class GeminiCompatibilityEmbeddings(Embeddings):
             last_error = None
             for attempt in range(max_retries):
                 for api_version in ["v1beta", "v1"]:
-                    url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+                    url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:batchEmbedContents?key={self.api_key}"
                     try:
-                        with httpx.Client(timeout=30.0) as client:
+                        with httpx.Client(timeout=60.0) as client:
                             res = client.post(url, json=payload)
                             if res.status_code == 200:
                                 data = res.json()
@@ -324,7 +328,9 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     continue
                 break
             else:
-                raise Exception(f"Failed to query Gemini embeddings after {max_retries} attempts. Last error: {last_error}")
+                logging.warning(f"Batch embed failed, falling back to individual embed_query calls: {last_error}")
+                for text in batch:
+                    all_embeddings.append(self.embed_query(text))
 
         return all_embeddings
 
@@ -392,12 +398,16 @@ class GeminiCompatibilityEmbeddings(Embeddings):
 
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            payload_parts = [{"text": text} for text in batch]
             payload = {
-                "model": f"models/{self.model}",
-                "content": {
-                    "parts": payload_parts
-                }
+                "requests": [
+                    {
+                        "model": f"models/{self.model}",
+                        "content": {
+                            "parts": [{"text": text}]
+                        }
+                    }
+                    for text in batch
+                ]
             }
 
             import httpx
@@ -409,9 +419,9 @@ class GeminiCompatibilityEmbeddings(Embeddings):
             last_error = None
             for attempt in range(max_retries):
                 for api_version in ["v1beta", "v1"]:
-                    url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:embedContent?key={self.api_key}"
+                    url = f"https://generativelanguage.googleapis.com/{api_version}/models/{self.model}:batchEmbedContents?key={self.api_key}"
                     try:
-                        async with httpx.AsyncClient(timeout=30.0) as client:
+                        async with httpx.AsyncClient(timeout=60.0) as client:
                             res = await client.post(url, json=payload)
                             if res.status_code == 200:
                                 data = res.json()
@@ -455,7 +465,9 @@ class GeminiCompatibilityEmbeddings(Embeddings):
                     continue
                 break
             else:
-                raise Exception(f"Failed to query Gemini embeddings async after {max_retries} attempts. Last error: {last_error}")
+                logging.warning(f"Async batch embed failed, falling back to individual aembed_query calls: {last_error}")
+                for text in batch:
+                    all_embeddings.append(await self.aembed_query(text))
 
         return all_embeddings
 
