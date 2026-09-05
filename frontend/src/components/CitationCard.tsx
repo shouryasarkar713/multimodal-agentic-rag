@@ -39,6 +39,17 @@ export function CitationCard({ citation, index }: CitationCardProps) {
             SEC: {citation.section_title}
           </div>
         )}
+
+        {/* Thumbnail Image if citation contains a figure */}
+        {citation.image_url && (
+          <div className="relative aspect-video w-full rounded-sm overflow-hidden bg-slate-950 mb-2 border border-neutral-border/50 group">
+            <img
+              src={citation.image_url.startsWith('http') ? citation.image_url : citation.image_url.startsWith('/') ? citation.image_url : `/api/images/${citation.image_url}`}
+              alt={citation.section_title || 'Figure'}
+              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-150"
+            />
+          </div>
+        )}
         
         <p className="text-[10px] text-slate-400 font-grotesk-sans font-medium line-clamp-3 leading-relaxed">
           {citation.excerpt}
@@ -82,6 +93,17 @@ export function CitationCard({ citation, index }: CitationCardProps) {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Modal Figure Image if available */}
+            {citation.image_url && (
+              <div className="relative rounded-sm overflow-hidden bg-slate-950 border border-neutral-border/60 flex items-center justify-center p-2 max-h-80">
+                <img
+                  src={citation.image_url.startsWith('http') ? citation.image_url : citation.image_url.startsWith('/') ? citation.image_url : `/api/images/${citation.image_url}`}
+                  alt={citation.section_title || 'Figure'}
+                  className="max-h-72 max-w-full object-contain rounded-sm"
+                />
+              </div>
+            )}
 
             {/* Modal Content Excerpt */}
             <div className="bg-slate-950/50 p-4 rounded-sm border border-neutral-border/60">

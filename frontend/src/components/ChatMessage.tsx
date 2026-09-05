@@ -124,7 +124,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   const processTextWithMathAndCitations = (text: string) => {
     // Matches display math ($$...$$), inline math ($...$), citations ([N], [p. N], (p. N)), and figure refs
-    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?:\\\$|[^\$\n])+\$|\[\d+\]|\[p\.?\s*\d+\]|\(p\.?\s*\d+\)|\[citation not found\]|\[Figure from source \d+\])/gi;
+    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?:\\\$|[^\$\n])+\$|\[\d+\]|\[p\.?\s*\d+\]|\(p\.?\s*\d+\)|\[citation not found\]|\[Figure from (?:source\s*)?\d+\])/gi;
     const parts = text.split(tokenRegex);
     if (parts.length === 1) {
       // Clean any isolated latex commands in plain text
@@ -158,11 +158,23 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </span>
           );
         }
-        if (part.startsWith('[Figure from source')) {
+        // Check if figure reference like [Figure from source 1] (case-insensitive)
+        const figMatch = part.match(/[\[\(]Figure from (?:source\s*)?(\d+)[\]\)]/i);
+        if (figMatch) {
+          const figSourceNum = parseInt(figMatch[1], 10);
           return (
             <span
               key={idx}
-              className="inline-block px-1.5 py-0.5 mx-0.5 rounded-sm bg-primary/10 text-primary border border-primary/20 text-[8px] font-tech-mono font-bold select-none cursor-default uppercase tracking-wide"
+              onClick={() => {
+                const figEl = document.getElementById('figure-card-0') || document.getElementById(`citation-card-${figSourceNum - 1}`) || document.getElementById('citation-card-0');
+                if (figEl) {
+                  figEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  figEl.classList.add('ring-1', 'ring-primary');
+                  setTimeout(() => figEl.classList.remove('ring-1', 'ring-primary'), 1500);
+                }
+              }}
+              className="inline-block px-1.5 py-0.5 mx-0.5 rounded-sm bg-primary/15 text-primary border border-primary/30 hover:bg-primary hover:text-slate-950 transition-colors text-[9px] font-tech-mono font-bold select-none cursor-pointer tracking-wider"
+              title="Click to view referenced figure"
             >
               {part}
             </span>
@@ -369,8 +381,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 Referenced Figures
               </span>
               <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-800">
-                {message.figure_refs?.map((fig) => (
-                  <FigureViewer key={fig.chunk_id} figure={fig} />
+                {message.figure_refs?.map((fig, fIdx) => (
+                  <div key={fig.chunk_id || fIdx} id={`figure-card-${fIdx}`} className="transition-all duration-300">
+                    <FigureViewer figure={fig} />
+                  </div>
                 ))}
               </div>
             </div>

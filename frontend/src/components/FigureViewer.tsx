@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ZoomIn, Info, Sparkles, Loader2 } from 'lucide-react';
+import { Eye, X, ZoomIn, Info, Sparkles, Loader2 } from 'lucide-react';
 import { FigureRef } from '../lib/types';
 import { useChatContext } from '../context/ChatContext';
 
@@ -11,14 +11,12 @@ export function FigureViewer({ figure }: FigureViewerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { submitQuery, sendingMessage } = useChatContext();
 
-  // Re-base the image path if it starts with /api
-  const serverBaseUrl = process.env.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL.replace('/api', '')
-    : 'http://localhost:8000';
-    
+  // Resolve image URL (handle relative /api path or full URL)
   const imageUrl = figure.image_path.startsWith('http')
     ? figure.image_path
-    : `${serverBaseUrl}${figure.image_path}`;
+    : figure.image_path.startsWith('/')
+    ? figure.image_path
+    : `/api/images/${figure.image_path}`;
 
   const handleExplain = async () => {
     setIsOpen(false); // Close lightbox
@@ -46,7 +44,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
             </div>
           </div>
         </div>
-        
+
         {/* Caption Info */}
         <div className="p-3 border-t border-neutral-border flex flex-col gap-1 select-none">
           <div className="flex items-center justify-between gap-2">
@@ -57,7 +55,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
               PAGE {figure.page_number}
             </span>
           </div>
-          <p className="text-[10px] text-slate-455 font-grotesk-sans font-medium line-clamp-2 leading-relaxed mt-1">
+          <p className="text-[10px] text-slate-450 font-grotesk-sans font-medium line-clamp-2 leading-relaxed mt-1">
             {figure.caption || 'No caption extracted.'}
           </p>
         </div>
@@ -68,12 +66,12 @@ export function FigureViewer({ figure }: FigureViewerProps) {
         <div className="fixed inset-0 bg-slate-950/85 z-50 flex items-center justify-center p-4">
           <button
             onClick={() => setIsOpen(false)}
-            className="absolute top-4 right-4 p-2 rounded-sm bg-surface text-slate-455 hover:text-slate-100 hover:bg-background transition-colors border border-neutral-border"
+            className="absolute top-4 right-4 p-2 rounded-sm bg-surface text-slate-450 hover:text-slate-100 hover:bg-background transition-colors border border-neutral-border"
             title="Close Lightbox"
           >
             <X className="w-5 h-5" />
           </button>
-          
+
           <div className="w-full max-w-4xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200 font-sans">
             {/* Center Image */}
             <div className="relative aspect-video rounded-sm bg-slate-950 overflow-hidden border border-neutral-border flex items-center justify-center">
@@ -83,7 +81,7 @@ export function FigureViewer({ figure }: FigureViewerProps) {
                 className="max-h-[70vh] max-w-full object-contain"
               />
             </div>
-            
+
             {/* Lightbox Caption */}
             <div className="bg-surface border border-neutral-border p-4 rounded-sm max-w-2xl w-full mx-auto flex flex-col gap-3">
               <div className="flex items-center justify-between gap-3">
@@ -97,11 +95,11 @@ export function FigureViewer({ figure }: FigureViewerProps) {
               <p className="text-xs text-slate-200 font-editorial-serif leading-relaxed italic font-semibold">
                 {figure.caption || 'No caption available.'}
               </p>
-              
+
               <button
                 onClick={handleExplain}
                 disabled={sendingMessage}
-                className="mt-1 w-full py-2 px-4 rounded-sm bg-background border border-neutral-border hover:border-primary/50 hover:text-primary disabled:border-neutral-border/30 disabled:text-slate-600 text-slate-355 font-bold font-tech-mono text-xs uppercase tracking-wider transition-colors"
+                className="mt-1 w-full py-2 px-4 rounded-sm bg-background border border-neutral-border hover:border-primary/50 hover:text-primary disabled:border-neutral-border/30 disabled:text-slate-600 text-slate-350 font-bold font-tech-mono text-xs uppercase tracking-wider transition-colors"
               >
                 {sendingMessage ? (
                   <>

@@ -15,6 +15,7 @@ class CitationResponseItem(BaseModel):
     section_title: Optional[str] = None
     excerpt: str
     relevance_score: float
+    image_url: Optional[str] = None
 
 class FigureRefResponseItem(BaseModel):
     chunk_id: uuid.UUID

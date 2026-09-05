@@ -24,6 +24,7 @@ class CitationItem(BaseModel):
     section_title: Optional[str] = None
     excerpt: str = ""
     relevance_score: float = 5.0
+    image_url: Optional[str] = None
 
 class MessageItem(BaseModel):
     id: uuid.UUID

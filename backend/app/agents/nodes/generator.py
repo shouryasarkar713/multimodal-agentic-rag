@@ -79,6 +79,11 @@ async def generator_node(state: AgentState) -> dict:
                     seen_chunk_ids.add(chunk_id)
                     new_idx = len(citations) + 1
                     old_to_new_num[num_str] = str(new_idx)
+                    # Extract image_url if this is an image chunk or has image_path
+                    image_url = chunk.get("image_url")
+                    if not image_url and chunk.get("image_path"):
+                        image_url = f"/api/images/{os.path.basename(chunk['image_path'])}"
+                        
                     citations.append({
                         "chunk_id": chunk_id,
                         "document_id": chunk["document_id"],
@@ -87,7 +92,8 @@ async def generator_node(state: AgentState) -> dict:
                         "page_number": chunk["page_number"],
                         "section_title": chunk.get("section_title"),
                         "excerpt": (chunk.get("content_text") or chunk.get("image_caption") or "")[:200],
-                        "relevance_score": chunk.get("relevance_score", 5.0)
+                        "relevance_score": chunk.get("relevance_score", 5.0),
+                        "image_url": image_url
                     })
                 elif num_str not in old_to_new_num:
                     existing_new_idx = next((i + 1 for i, c in enumerate(citations) if c["chunk_id"] == chunk_id), 1)
@@ -105,20 +111,19 @@ async def generator_node(state: AgentState) -> dict:
 
         answer = re.sub(r'\[(\d+)\]', replace_inline_citations, answer)
 
-        # 4. Parse figure references [Figure from source N]
+        # 4. Parse figure references [Figure from source N] (case-insensitive)
         figure_refs = []
         seen_figures = set()
         
-        figure_matches = re.findall(r'\[Figure from source (\d+)\]', answer)
+        figure_matches = re.findall(r'\[Figure from source (\d+)\]', answer, re.IGNORECASE)
         for num_str in figure_matches:
             idx = int(num_str) - 1
             if 0 <= idx < len(retrieved_chunks):
                 chunk = retrieved_chunks[idx]
-                if chunk.get("content_type") == "image":
+                if chunk.get("content_type") == "image" or chunk.get("image_path") or chunk.get("image_url"):
                     chunk_id = chunk["id"]
                     if chunk_id not in seen_figures:
                         seen_figures.add(chunk_id)
-                        
                         image_path = chunk.get("image_url")
                         if not image_path and chunk.get("image_path"):
                             image_path = f"/api/images/{os.path.basename(chunk['image_path'])}"
@@ -130,25 +135,68 @@ async def generator_node(state: AgentState) -> dict:
                             "caption": chunk.get("image_caption") or chunk.get("section_title") or "Figure reference",
                             "page_number": chunk["page_number"]
                         })
+                else:
+                    # Look for an image chunk from the same page
+                    page_num = chunk.get("page_number")
+                    page_img = next(
+                        (ch for ch in retrieved_chunks if (ch.get("content_type") == "image" or ch.get("image_path")) and ch.get("page_number") == page_num),
+                        None
+                    )
+                    if page_img and page_img["id"] not in seen_figures:
+                        seen_figures.add(page_img["id"])
+                        img_path = page_img.get("image_url") or f"/api/images/{os.path.basename(page_img['image_path'])}"
+                        figure_refs.append({
+                            "chunk_id": page_img["id"],
+                            "document_id": page_img["document_id"],
+                            "image_path": img_path,
+                            "caption": page_img.get("image_caption") or chunk.get("section_title") or f"Figure from page {page_num}",
+                            "page_number": page_num
+                        })
                         
-        # Check if any standard cited chunk is an image and add it to figure_refs if missed
+        # Check if any standard cited chunk has an image or is on a page with a figure
         for c in citations:
             matched_chunk = next((chunk for chunk in retrieved_chunks if chunk["id"] == c["chunk_id"]), None)
-            if matched_chunk and matched_chunk.get("content_type") == "image":
-                chunk_id = matched_chunk["id"]
-                if chunk_id not in seen_figures:
-                    seen_figures.add(chunk_id)
-                    image_path = matched_chunk.get("image_url")
-                    if not image_path and matched_chunk.get("image_path"):
-                        image_path = f"/api/images/{os.path.basename(matched_chunk['image_path'])}"
-                        
-                    figure_refs.append({
-                        "chunk_id": chunk_id,
-                        "document_id": matched_chunk["document_id"],
-                        "image_path": image_path,
-                        "caption": matched_chunk.get("image_caption") or matched_chunk.get("section_title") or "Figure reference",
-                        "page_number": matched_chunk["page_number"]
-                    })
+            if matched_chunk:
+                if matched_chunk.get("content_type") == "image" or matched_chunk.get("image_path") or matched_chunk.get("image_url"):
+                    chunk_id = matched_chunk["id"]
+                    img_path = matched_chunk.get("image_url") or f"/api/images/{os.path.basename(matched_chunk['image_path'])}"
+                    c["image_url"] = img_path
+                    if chunk_id not in seen_figures:
+                        seen_figures.add(chunk_id)
+                        figure_refs.append({
+                            "chunk_id": chunk_id,
+                            "document_id": matched_chunk["document_id"],
+                            "image_path": img_path,
+                            "caption": matched_chunk.get("image_caption") or matched_chunk.get("section_title") or "Figure reference",
+                            "page_number": matched_chunk["page_number"]
+                        })
+                else:
+                    # If page has a figure, attach image_url to citation as well
+                    page_num = matched_chunk.get("page_number")
+                    page_img = next(
+                        (ch for ch in retrieved_chunks if (ch.get("content_type") == "image" or ch.get("image_path")) and ch.get("page_number") == page_num),
+                        None
+                    )
+                    if page_img:
+                        img_path = page_img.get("image_url") or f"/api/images/{os.path.basename(page_img['image_path'])}"
+                        c["image_url"] = img_path
+                        if page_img["id"] not in seen_figures:
+                            seen_figures.add(page_img["id"])
+                            figure_refs.append({
+                                "chunk_id": page_img["id"],
+                                "document_id": page_img["document_id"],
+                                "image_path": img_path,
+                                "caption": page_img.get("image_caption") or f"Figure from page {page_num}",
+                                "page_number": page_num
+                            })
+
+        # Renumber [Figure from source N] to match new sequential citation index
+        def replace_fig_citations(match):
+            old_num = match.group(1)
+            new_num = old_to_new_num.get(old_num, old_num)
+            return f"[Figure from source {new_num}]"
+
+        answer = re.sub(r'\[Figure from source (\d+)\]', replace_fig_citations, answer, flags=re.IGNORECASE)
         
         # 6. Calculate confidence_score
         confidence = 1.0

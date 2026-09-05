@@ -1,21 +1,29 @@
 import os
 import uuid
+import json
 import logging
-from fastapi import APIRouter, Depends, status, HTTPException
+import httpx
+import openai
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.dependencies import get_db, verify_api_key
-from app.models.db import Session, Document, Message
+from app.dependencies import get_db
+from app.models.db import Session, Message
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    CitationResponseItem,
+    FigureRefResponseItem
+)
 from app.schemas.sessions import RetrieveRequest, RetrieveResponse, RetrievedChunkItem
-from app.schemas.chat import ChatRequest, ChatResponse, CitationResponseItem, FigureRefResponseItem
 from app.services.retrieval import retrieve_and_rerank
-from app.agents.graph import compiled_graph
+from app.agents.graph import build_research_graph
 
-router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 @router.post("/retrieve", response_model=RetrieveResponse, status_code=status.HTTP_200_OK)
-async def retrieve_chunks(
+async def retrieve_endpoint(
     body: RetrieveRequest,
     db: AsyncSession = Depends(get_db)
 ):
@@ -64,36 +72,36 @@ async def chat_endpoint(
             detail="Query cannot be empty"
         )
 
-    # 2. Validate session exists
+    # 2. Check if session exists; auto-create if not found
     session = await db.get(Session, body.session_id)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session not found"
+        session = Session(
+            id=body.session_id,
+            title=body.query[:50]
         )
+        db.add(session)
+        await db.commit()
+        await db.refresh(session)
 
-    # 3. Validate document_ids (Risk 8 & 404 validation)
-    if body.document_ids:
-        for doc_id in body.document_ids:
-            doc = await db.get(Document, doc_id)
-            if not doc:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Document {doc_id} not found"
-                )
-            if doc.status == "processing":
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Document '{doc.title or doc.filename}' is still being processed. Please wait for processing to complete."
-                )
-
-    # 4. Load past chat history in session (prior to this query)
-    stmt_history = select(Message).where(Message.session_id == body.session_id).order_by(Message.created_at.asc())
+    # 3. Retrieve recent conversation history for this session (up to 10 messages)
+    stmt_history = (
+        select(Message)
+        .where(Message.session_id == body.session_id)
+        .order_by(Message.created_at.desc())
+        .limit(10)
+    )
     res_history = await db.execute(stmt_history)
-    history_msgs = res_history.scalars().all()
-    chat_history_list = [{"role": m.role, "content": m.content} for m in history_msgs]
+    history_messages = res_history.scalars().all()
+    # Reverse to chronological order
+    history_messages = list(reversed(history_messages))
 
-    # 5. Persist user message row
+    # 4. Format chat history
+    chat_history_list = [
+        {"role": msg.role, "content": msg.content}
+        for msg in history_messages
+    ]
+
+    # 5. Persist user query message in DB
     user_msg = Message(
         id=uuid.uuid4(),
         session_id=body.session_id,
@@ -144,18 +152,11 @@ async def chat_endpoint(
         }
     }
 
-    # 8. Run StateGraph invocation
-    logging.info(
-        f"[ChatAPI] Starting query execution for session={body.session_id}, "
-        f"query='{body.query}', docs={body.document_ids}"
-    )
+    # 8. Execute Agentic Graph
+    graph = build_research_graph()
     try:
-        final_state = await compiled_graph.ainvoke(initial_state, config)
-        logging.info(f"[ChatAPI] Query execution succeeded for session={body.session_id}")
+        final_state = await graph.ainvoke(initial_state, config=config)
     except Exception as e:
-        import httpx
-        import openai
-
         is_timeout = False
         if isinstance(e, httpx.TimeoutException) or isinstance(e, openai.APITimeoutError):
             is_timeout = True
@@ -225,7 +226,8 @@ async def chat_endpoint(
             page_number=c["page_number"],
             section_title=c.get("section_title"),
             excerpt=c["excerpt"],
-            relevance_score=c.get("relevance_score", 5.0)
+            relevance_score=c.get("relevance_score", 5.0),
+            image_url=c.get("image_url")
         ))
 
     figure_refs_res = []

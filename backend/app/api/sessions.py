@@ -1,24 +1,23 @@
 import uuid
 import json
 import logging
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.dependencies import get_db, verify_api_key
+from app.dependencies import get_db
 from app.models.db import Session, Message
 from app.schemas.sessions import (
     SessionCreate,
     SessionResponse,
     SessionListResponse,
-    MessageListResponse,
     MessageItem,
+    MessageListResponse,
     CitationItem
 )
 
-# Prefix configured as /sessions to match /api/sessions contract
-router = APIRouter(prefix="/sessions", tags=["sessions"], dependencies=[Depends(verify_api_key)])
+router = APIRouter(prefix="/sessions", tags=["sessions"])
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
@@ -26,54 +25,58 @@ async def create_session(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new chat session."""
-    title = (body.title if body and body.title else "New Session").strip()
-    if not title:
-        title = "New Session"
-        
-    new_session = Session(title=title)
-    db.add(new_session)
+    title = body.title if (body and body.title) else "New Session"
+    session = Session(title=title)
+    db.add(session)
     await db.commit()
-    await db.refresh(new_session)
+    await db.refresh(session)
     
     return SessionResponse(
-        id=new_session.id,
-        title=new_session.title,
+        id=session.id,
+        title=session.title,
         message_count=0,
-        created_at=new_session.created_at,
-        updated_at=new_session.updated_at
+        created_at=session.created_at,
+        updated_at=session.updated_at
     )
 
-@router.get("", response_model=SessionListResponse)
-async def list_sessions(db: AsyncSession = Depends(get_db)):
-    """List all chat sessions ordered by updated_at descending with message counts."""
+@router.get("", response_model=SessionListResponse, status_code=status.HTTP_200_OK)
+async def list_sessions(
+    db: AsyncSession = Depends(get_db)
+):
+    """List all sessions ordered by updated_at descending with message counts."""
+    # Subquery or count query for messages
+    count_subq = (
+        select(func.count(Message.id))
+        .where(Message.session_id == Session.id)
+        .scalar_subquery()
+    )
+    
     stmt = (
-        select(Session, func.count(Message.id))
-        .outerjoin(Message, Session.id == Message.session_id)
-        .group_by(Session.id)
+        select(Session, count_subq.label("msg_count"))
         .order_by(Session.updated_at.desc())
     )
-    result = await db.execute(stmt)
-    sessions_with_counts = result.all()
     
-    return SessionListResponse(
-        sessions=[
-            SessionResponse(
-                id=s.id,
-                title=s.title,
-                message_count=count,
-                created_at=s.created_at,
-                updated_at=s.updated_at
-            ) for s, count in sessions_with_counts
-        ]
-    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    session_responses = []
+    for session, msg_count in rows:
+        session_responses.append(SessionResponse(
+            id=session.id,
+            title=session.title,
+            message_count=msg_count or 0,
+            created_at=session.created_at,
+            updated_at=session.updated_at
+        ))
+        
+    return SessionListResponse(sessions=session_responses)
 
-@router.get("/{session_id}/messages", response_model=MessageListResponse)
+@router.get("/{session_id}/messages", response_model=MessageListResponse, status_code=status.HTTP_200_OK)
 async def get_session_messages(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Retrieve message history for a specific chat session."""
-    # Check if session exists
+    """Get all messages for a session in chronological order."""
     session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(
@@ -81,13 +84,17 @@ async def get_session_messages(
             detail="Session not found"
         )
         
-    stmt = select(Message).where(Message.session_id == session_id).order_by(Message.created_at.asc())
+    stmt = (
+        select(Message)
+        .where(Message.session_id == session_id)
+        .order_by(Message.created_at.asc())
+    )
     result = await db.execute(stmt)
     messages = result.scalars().all()
     
     message_items = []
     for m in messages:
-        # Cast citations from JSONB to CitationItem
+        # Safely extract citations
         citations = []
         raw_citations = m.citations
         if raw_citations:
@@ -98,14 +105,13 @@ async def get_session_messages(
                     raw_citations = []
             if isinstance(raw_citations, list):
                 for cit in raw_citations:
-                    if not isinstance(cit, dict):
-                        continue
                     try:
-                        raw_chunk_id = cit.get("chunk_id")
-                        raw_doc_id = cit.get("document_id")
-                        chunk_id = uuid.UUID(str(raw_chunk_id)) if raw_chunk_id else uuid.uuid4()
-                        doc_id = uuid.UUID(str(raw_doc_id)) if raw_doc_id else uuid.uuid4()
-
+                        chunk_id = cit.get("chunk_id")
+                        if isinstance(chunk_id, str):
+                            chunk_id = uuid.UUID(chunk_id)
+                        doc_id = cit.get("document_id")
+                        if isinstance(doc_id, str):
+                            doc_id = uuid.UUID(doc_id)
                         citations.append(CitationItem(
                             chunk_id=chunk_id,
                             document_id=doc_id,
@@ -113,7 +119,8 @@ async def get_session_messages(
                             page_number=int(cit.get("page_number") or 1),
                             section_title=cit.get("section_title"),
                             excerpt=str(cit.get("excerpt") or cit.get("content_text") or ""),
-                            relevance_score=float(cit.get("relevance_score") or 5.0)
+                            relevance_score=float(cit.get("relevance_score") or 5.0),
+                            image_url=cit.get("image_url")
                         ))
                     except Exception as err:
                         logging.warning(f"Skipping malformed citation entry: {err}")

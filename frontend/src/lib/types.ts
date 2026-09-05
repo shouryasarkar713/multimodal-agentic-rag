@@ -27,6 +27,7 @@ export interface Citation {
   section_title?: string;
   excerpt: string;
   relevance_score: number;
+  image_url?: string | null;
 }
 
 export interface FigureRef {
