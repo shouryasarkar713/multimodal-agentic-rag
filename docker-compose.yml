@@ -32,10 +32,10 @@ services:
     environment:
       - EVAL_OPENAI_API_KEY=${EVAL_OPENAI_API_KEY}
       - EVAL_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
-      - EVAL_OPENAI_MODEL_NAME=poolside/laguna-xs-2.1
+      - EVAL_OPENAI_MODEL_NAME=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
       - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY}
       - LLM_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
-      - LLM_OPENAI_MODEL_NAME=poolside/laguna-xs-2.1
+      - LLM_OPENAI_MODEL_NAME=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
       - EMBEDDING_OPENAI_API_KEY=${EMBEDDING_OPENAI_API_KEY}
       - EMBEDDING_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
       - EMBEDDING_OPENAI_MODEL_NAME=nvidia/nemotron-3-embed-1b

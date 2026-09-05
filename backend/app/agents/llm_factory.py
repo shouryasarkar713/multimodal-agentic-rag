@@ -55,10 +55,10 @@ def get_generation_llm() -> Runnable:
 
     # Sanitize known EOL / deprecated models on NVIDIA NIM and Google
     is_nvidia = "nvidia" in (base_url or "").lower()
-    if any(k in model_name.lower() for k in ["llama", "mistral"]):
+    if any(k in model_name.lower() for k in ["llama", "mistral", "minimax"]):
         if is_nvidia:
-            logging.info("Model '%s' is EOL or unstable on NVIDIA NIM. Mapping to active model 'poolside/laguna-xs-2.1'.", model_name)
-            model_name = "poolside/laguna-xs-2.1"
+            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'.", model_name)
+            model_name = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
         else:
             model_name = "gemini-3.6-flash"
     elif "gemini" in model_name.lower() and ("1.5" in model_name or "latest" in model_name or "2.5" in model_name):
@@ -90,11 +90,11 @@ def get_generation_llm() -> Runnable:
 
     fallbacks: list[ChatOpenAI] = []
 
-    # Fallback 1: Minimax M3 on NVIDIA NIM
-    if is_nvidia and model_name != "minimaxai/minimax-m3":
+    # Fallback 1: Poolside Laguna on NVIDIA NIM (ultra-fast 0.8s response)
+    if is_nvidia and model_name != "poolside/laguna-xs-2.1":
         fallbacks.append(
             _build_chat_openai(
-                model="minimaxai/minimax-m3",
+                model="poolside/laguna-xs-2.1",
                 api_key=api_key,
                 base_url=base_url,
                 temperature=temperature,
