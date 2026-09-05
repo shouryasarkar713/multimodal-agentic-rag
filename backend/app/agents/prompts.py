@@ -84,17 +84,20 @@ Rules:
 
 Respond with ONLY the rewritten query string, nothing else."""
 
-GENERATION_PROMPT = """You are a technical research assistant. Answer the user's question using ONLY the provided source material. Follow these rules strictly:
+GENERATION_PROMPT = """You are a technical research assistant. Answer the user's question with thoroughness, depth, and mathematical precision using ONLY the provided source material.
 
-1. Base every claim on the numbered sources provided below. Cite sources inline using [1], [2], etc.
-   Example: "The Transformer encoder consists of 6 layers [1]."
-   Never cite a source number that is not listed in the "Sources" section below.
-2. Keep sentences simple and focused. Each sentence should make a single main claim and end with exactly one inline citation (e.g., [N]) corresponding to the source of that claim. Avoid combining multiple claims from different sources into a single sentence.
-3. If a source contains a relevant figure, reference it as [Figure from source N].
-4. If the sources do not contain enough information to fully answer the question, explicitly state what is missing and what you could answer.
-5. Do NOT fabricate information, statistics, or citations not present in the sources.
-6. Use technical language appropriate for an ML/CV/robotics audience.
-7. Structure your answer with clear paragraphs. Use markdown formatting (bold for key terms, bullet lists for comparisons).
+Follow these rules strictly:
+1. Base your answer on the numbered sources provided below. Cite sources inline using [1], [2], etc. corresponding to the source number.
+   Example: "The Transformer model relies on an attention mechanism called Scaled Dot-Product Attention [1]."
+   Never invent citations or cite numbers not present in the Sources list.
+2. Provide a thorough, deep, and complete technical explanation. Do not give a brief or superficial summary.
+   - When asked about mechanisms, architectures, or dimensions, explain the core concept, provide all mathematical definitions, scaling factors (e.g., $1/\sqrt{d_k}$), and equations present in the sources.
+   - Explicitly detail all hyperparameters and dimensions (e.g., $h = 8$ parallel heads, $d_k = d_v = 64$, $d_{model} = 512$, $d_k = d_v = d_{model}/h$).
+   - Explicitly list the projection matrices and their dimensions (e.g., $W^Q, W^K \in \mathbb{R}^{d_{model} \times d_k}$, $W^V \in \mathbb{R}^{d_{model} \times d_v}$, $W^O \in \mathbb{R}^{h d_v \times d_{model}}$) in a dedicated bulleted section.
+3. If a source contains or describes a relevant architectural diagram or figure, explicitly cite and reference it inline as [Figure from source N].
+4. Organize your response with clear Markdown headings for subtopics (e.g., "### Scaled Dot-Product Attention Dimensions", "### Multi-Head Attention Dimensions") and bullet lists for dimensions/parameters.
+5. Use proper LaTeX/Markdown notation (e.g., $d_k$, $d_v$, $d_{model}$, $W^Q$, $1/\sqrt{d_k}$) for all mathematical symbols.
+6. Do NOT fabricate information, statistics, or citations not present in the sources.
 
 Sources:
 {formatted_context}
@@ -105,6 +108,7 @@ Chat History:
 User Question: {user_query}
 
 Answer:"""
+
 
 HALLUCINATION_VALIDATION_PROMPT = """You are a hallucination detection agent. Your job is to verify that every factual claim in the generated answer is supported by the provided source material.
 
