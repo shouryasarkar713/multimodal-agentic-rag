@@ -37,6 +37,7 @@ async def query_understanding_node(state: AgentState) -> dict:
     }
     
     try:
+        logging.info(f"[QueryUnderstanding] Analyzing user query: '{user_query}'")
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
@@ -44,6 +45,7 @@ async def query_understanding_node(state: AgentState) -> dict:
         if not isinstance(parsed_json, dict):
             parsed_json = {}
         duration_ms = int((time.time() - start_time) * 1000)
+        logging.info(f"[QueryUnderstanding] Classified intent='{parsed_json.get('intent')}', types={parsed_json.get('retrieval_types')} in {duration_ms}ms")
         
         # Record trace step
         step = {

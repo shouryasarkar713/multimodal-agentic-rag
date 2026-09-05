@@ -113,30 +113,30 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                 chunk_counts_by_type["table"] = len(merged)
                 
             elif rtype == "image":
-                if direct_chunk_id and direct_chunk_id in retrieved_chunks_map:
-                    # Already fetched requested figure chunk directly, bypass search to prevent semantic drift (Bug 1)
-                    pass
-                else:
-                    # Two-pronged search: (a) CLIP query-image cosine similarity
-                    model, _ = get_clip_model()
-                    text_tokens = open_clip.tokenize([query_text])
-                    with torch.no_grad():
-                        text_features = model.encode_text(text_tokens)
-                        text_features /= text_features.norm(dim=-1, keepdim=True)
-                        query_clip_vector = text_features[0].cpu().numpy().tolist()
+                # Visual CLIP + Dense caption search
+                clip_model, clip_preprocess = get_clip_model()
+                tokens = open_clip.tokenize([query_text])
+                with torch.no_grad():
+                    query_features = clip_model.encode_text(tokens)
+                    query_features /= query_features.norm(dim=-1, keepdim=True)
+                    clip_query_embedding = query_features[0].cpu().numpy().tolist()
                     
-                    stmt_clip = select(Chunk).where(Chunk.content_type == "image")
-                    if document_ids:
-                        stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
-                    stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(query_clip_vector)).limit(10)
-                    res_clip = await db.execute(stmt_clip)
-                    clip_results = res_clip.scalars().all()
-                    
-                    # (b) Caption dense text search
-                    stmt_caption = select(Chunk).where(Chunk.content_type == "image")
-                    if document_ids:
-                        stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
-                    stmt_caption = stmt_caption.order_by(Chunk.text_embedding.cosine_distance(query_embedding)).limit(10)
+                stmt_clip = select(Chunk).where(Chunk.content_type == "image")
+                if document_ids:
+                    stmt_clip = stmt_clip.where(Chunk.document_id.in_(document_ids))
+                stmt_clip = stmt_clip.where(Chunk.image_embedding.isnot(None))
+                stmt_clip = stmt_clip.order_by(Chunk.image_embedding.cosine_distance(clip_query_embedding)).limit(10)
+                res_clip = await db.execute(stmt_clip)
+                clip_results = res_clip.scalars().all()
+                
+                # Text search on image captions
+                stmt_caption = select(Chunk).where(Chunk.content_type == "image")
+                if document_ids:
+                    stmt_caption = stmt_caption.where(Chunk.document_id.in_(document_ids))
+                if query_embedding:
+                    stmt_caption = stmt_caption.where(Chunk.text_embedding.isnot(None)).order_by(
+                        Chunk.text_embedding.cosine_distance(query_embedding)
+                    ).limit(10)
                     res_caption = await db.execute(stmt_caption)
                     caption_results = res_caption.scalars().all()
                     
@@ -244,13 +244,12 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
                     "image_caption": c.image_caption, # Preserve image caption metadata (Bug 1)
                     "page_number": c.page_number,
                     "section_title": c.section_title,
+                    "relevance_score": score,
                     "image_url": image_url,
-                    "relevance_score": score
+                    "image_path": c.image_path
                 })
                 
         duration_ms = int((time.time() - start_time) * 1000)
-        
-        # Record trace step
         step = {
             "step_name": "retrieval_orchestrator",
             "input_summary": f"Retrieving for query: '{query_text}' with types {retrieval_types}",
@@ -262,6 +261,7 @@ async def retrieval_orchestrator_node(state: AgentState, config: dict) -> dict:
             }
         }
         
+        logging.info(f"[RetrievalOrchestrator] retrieved {len(ranked_chunks)} reranked chunks in {duration_ms}ms (counts: {chunk_counts_by_type})")
         return {
             "retrieved_chunks": ranked_chunks,
             "trace_steps": (state.get("trace_steps") or []) + [step]

@@ -123,7 +123,6 @@ async def generator_node(state: AgentState) -> dict:
                     image_path = matched_chunk.get("image_url")
                     if not image_path and matched_chunk.get("image_path"):
                         image_path = f"/api/images/{os.path.basename(matched_chunk['image_path'])}"
-                        
                     figure_refs.append({
                         "chunk_id": chunk_id,
                         "document_id": matched_chunk["document_id"],
@@ -163,7 +162,7 @@ async def generator_node(state: AgentState) -> dict:
         confidence = max(0.0, min(1.0, confidence))
         
         duration_ms = int((time.time() - start_time) * 1000)
-        
+        logging.info(f"[Generator] Generated answer in {duration_ms}ms ({len(answer)} chars, {len(citations)} citations, {len(figure_refs)} figures)")
         step = {
             "step_name": "generator",
             "input_summary": f"Generating answer for: '{user_query}'",

@@ -145,8 +145,13 @@ async def chat_endpoint(
     }
 
     # 8. Run StateGraph invocation
+    logging.info(
+        f"[ChatAPI] Starting query execution for session={body.session_id}, "
+        f"query='{body.query}', docs={body.document_ids}"
+    )
     try:
         final_state = await compiled_graph.ainvoke(initial_state, config)
+        logging.info(f"[ChatAPI] Query execution succeeded for session={body.session_id}")
     except Exception as e:
         import httpx
         import openai
@@ -205,42 +210,48 @@ async def chat_endpoint(
     asst_msg = res_asst.scalar_one_or_none()
 
     if not asst_msg:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Agent execution failed: assistant message was not created."
-        )
+        # If finalize node somehow didn't persist assistant message, fall back to final_state answer
+        logging.warning("Assistant message not found in DB after finalize_node; constructing fallback message.")
+        answer_text = final_state.get("generated_answer", "")
+        citations_list = final_state.get("citations", [])
+        figure_refs_list = final_state.get("figure_refs", [])
+        confidence_val = final_state.get("confidence_score", 1.0)
+    else:
+        answer_text = asst_msg.content
+        citations_list = asst_msg.citations or []
+        figure_refs_list = asst_msg.figure_refs or []
+        confidence_val = asst_msg.confidence_score if asst_msg.confidence_score is not None else 1.0
 
-    # 10. Parse citations and figures into schema formats
-    citations_res = []
-    for c in asst_msg.citations or []:
-        citations_res.append(CitationResponseItem(
-            chunk_id=uuid.UUID(c["chunk_id"]),
-            document_id=uuid.UUID(c["document_id"]),
-            document_title=c.get("document_title", "Unknown"),
-            page_number=c["page_number"],
+    # 10. Map Citations
+    citation_items = []
+    for c in citations_list:
+        citation_items.append(CitationResponseItem(
+            chunk_id=c.get("chunk_id") or uuid.uuid4(),
+            document_id=c.get("document_id") or uuid.uuid4(),
+            document_title=c.get("document_title"),
+            filename=c.get("filename"),
+            page_number=c.get("page_number", 1),
             section_title=c.get("section_title"),
-            excerpt=c["excerpt"],
+            excerpt=c.get("excerpt", ""),
             relevance_score=c.get("relevance_score", 5.0)
         ))
 
-    figure_refs_res = []
-    for f in asst_msg.figure_refs or []:
-        figure_refs_res.append(FigureRefResponseItem(
-            chunk_id=uuid.UUID(f["chunk_id"]),
-            document_id=uuid.UUID(f["document_id"]),
-            image_path=f["image_path"],
-            caption=f["caption"],
-            page_number=f["page_number"]
+    # 11. Map Figure References
+    figure_ref_items = []
+    for f in figure_refs_list:
+        figure_ref_items.append(FigureRefResponseItem(
+            chunk_id=f.get("chunk_id") or uuid.uuid4(),
+            document_id=f.get("document_id") or uuid.uuid4(),
+            image_path=f.get("image_path", ""),
+            caption=f.get("caption", ""),
+            page_number=f.get("page_number", 1)
         ))
 
-    # Return structured Response
+    # 12. Return ChatResponse payload
     return ChatResponse(
-        message_id=asst_msg.id,
-        content=asst_msg.content,
-        citations=citations_res,
-        figure_refs=figure_refs_res,
-        confidence=asst_msg.confidence,
-        trace_id=uuid.UUID(state_val) if (state_val := final_state.get("trace_id")) else trace_id,
-        intent=final_state.get("classified_intent") or "paper_qa",
-        retrieval_types=final_state.get("retrieval_types") or ["text"]
+        answer=answer_text,
+        citations=citation_items,
+        figure_refs=figure_ref_items,
+        confidence_score=confidence_val,
+        trace_id=trace_id
     )

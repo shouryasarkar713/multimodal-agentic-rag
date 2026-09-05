@@ -143,7 +143,7 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
             })
             
         duration_ms = int((time.time() - start_time) * 1000)
-        
+        logging.info(f"[Summarization] Summarized {target_desc} using {len(chunks)} chunks in {duration_ms}ms (length: {len(answer)} chars)")
         step = {
             "step_name": "summarization",
             "input_summary": f"Summarizing {target_desc}",

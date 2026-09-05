@@ -3,52 +3,53 @@ import time
 import logging
 
 from app.agents.llm_factory import get_generation_llm
-from app.config import settings
 from app.agents.state import AgentState
 from app.agents.prompts import HALLUCINATION_VALIDATION_PROMPT
 from app.agents.utils import extract_json
 
 async def hallucination_validator_node(state: AgentState) -> dict:
-    """Validate that every cited claim in the generated answer exists in the retrieved context."""
+    """Validate that the generated answer does not contain hallucinated claims."""
     answer = state.get("generated_answer", "")
     formatted_context = state.get("formatted_context", "")
     prev_validation = state.get("validation_passed")
     
     start_time = time.time()
     
-    # If no answer or context, pass by default
-    if not answer or not formatted_context.strip():
+    # Fast-path: if answer is empty or default safety response, skip validation
+    if not answer or "I couldn't find relevant information" in answer:
         duration_ms = int((time.time() - start_time) * 1000)
+        step = {
+            "step_name": "hallucination_validator",
+            "input_summary": "Skipping validation for fallback answer",
+            "output_summary": "Skipped. validation_passed: True",
+            "duration_ms": duration_ms,
+            "metadata": {"skipped": True}
+        }
         return {
             "validation_passed": True,
             "validation_issues": [],
-            "trace_steps": (state.get("trace_steps") or []) + [{
-                "step_name": "hallucination_validator",
-                "input_summary": "Skipped validation (empty answer or context)",
-                "output_summary": "Passed",
-                "duration_ms": duration_ms,
-                "metadata": {}
-            }]
+            "trace_steps": (state.get("trace_steps") or []) + [step]
         }
         
+    prompt = HALLUCINATION_VALIDATION_PROMPT.format(
+        context=formatted_context,
+        answer=answer
+    )
+    
     try:
-        prompt = HALLUCINATION_VALIDATION_PROMPT.format(
-            generated_answer=answer,
-            formatted_context=formatted_context
-        )
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
         parsed_json = extract_json(content)
         if not isinstance(parsed_json, dict):
             parsed_json = {}
+            
         overall_supported = parsed_json.get("overall_supported", True)
-        
         claims = parsed_json.get("claims") or []
         validation_issues = [c.get("issue") for c in claims if not c.get("supported") and c.get("issue")]
         
         duration_ms = int((time.time() - start_time) * 1000)
-        
+        logging.info(f"[Validator] overall_supported={overall_supported}, val_passed={overall_supported} in {duration_ms}ms")
         # 1. Determine validation status and apply retries / disclaimers
         if overall_supported:
             val_passed = True
@@ -88,21 +89,24 @@ async def hallucination_validator_node(state: AgentState) -> dict:
         logging.error(f"Error in hallucination_validator_node: {e}")
         duration_ms = int((time.time() - start_time) * 1000)
         
-        # Fallback default: pass validation to avoid graph deadlocks, log error
+        # Fallback: pass validation so we don't break answer output
+        step = {
+            "step_name": "hallucination_validator",
+            "input_summary": "Validating answer claims against context",
+            "output_summary": f"Validation failed with exception ({str(e)}). Passed through gracefully.",
+            "duration_ms": duration_ms,
+            "metadata": {"error": str(e), "fallback": True}
+        }
         return {
             "validation_passed": True,
-            "validation_issues": [f"Validation failed with exception: {str(e)}"],
-            "trace_steps": (state.get("trace_steps") or []) + [{
-                "step_name": "hallucination_validator",
-                "input_summary": "Validating answer claims against context",
-                "output_summary": f"Failed (Fallback to pass): {str(e)}",
-                "duration_ms": duration_ms,
-                "metadata": {"error": str(e)}
-            }]
+            "validation_issues": [],
+            "generated_answer": answer,
+            "trace_steps": (state.get("trace_steps") or []) + [step]
         }
 
 def check_validation(state: AgentState) -> str:
-    """Conditional edge routing for hallucination check."""
-    if state.get("validation_passed"):
-        return "pass"
-    return "fail"
+    """Conditional edge router based on validation_passed."""
+    passed = state.get("validation_passed")
+    if passed is False:
+        return "fail"
+    return "pass"

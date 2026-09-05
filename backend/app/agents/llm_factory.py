@@ -5,6 +5,8 @@ import logging
 from typing import Any
 
 from langchain_openai import ChatOpenAI
+
+
 from langchain_core.runnables import Runnable
 
 
@@ -57,8 +59,8 @@ def get_generation_llm() -> Runnable:
     is_nvidia = "nvidia" in (base_url or "").lower()
     if any(k in model_name.lower() for k in ["llama", "mistral", "minimax"]):
         if is_nvidia:
-            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'.", model_name)
-            model_name = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'poolside/laguna-xs-2.1'.", model_name)
+            model_name = "poolside/laguna-xs-2.1"
         else:
             model_name = "gemini-3.6-flash"
     elif "gemini" in model_name.lower() and ("1.5" in model_name or "latest" in model_name or "2.5" in model_name):
@@ -84,22 +86,23 @@ def get_generation_llm() -> Runnable:
         base_url=base_url,
         temperature=temperature,
         max_tokens=max_tokens,
-        timeout=45.0,
-        max_retries=2,
+        timeout=30.0,
+        max_retries=1,
     )
 
     fallbacks: list[ChatOpenAI] = []
 
-    # Fallback 1: Poolside Laguna on NVIDIA NIM (ultra-fast 0.8s response)
-    if is_nvidia and model_name != "poolside/laguna-xs-2.1":
+    # If primary is Laguna, fallback to Nemotron; if primary is Nemotron, fallback to Laguna
+    if is_nvidia:
+        alt_model = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" if model_name != "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" else "poolside/laguna-xs-2.1"
         fallbacks.append(
             _build_chat_openai(
-                model="poolside/laguna-xs-2.1",
+                model=alt_model,
                 api_key=api_key,
                 base_url=base_url,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=45.0,
+                timeout=30.0,
                 max_retries=1,
             )
         )
@@ -115,7 +118,7 @@ def get_generation_llm() -> Runnable:
                 base_url=gemini_base,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=45.0,
+                timeout=30.0,
                 max_retries=1,
             )
         )
