@@ -96,7 +96,7 @@ Follow these rules strictly:
    - Explicitly list the projection matrices and their dimensions (e.g., W^Q, W^K with dimension d_model x d_k; W^V with dimension d_model x d_v; W^O with dimension h*d_v x d_model) in a dedicated bulleted section.
 3. If a source contains or describes a relevant architectural diagram or figure, explicitly cite and reference it inline as [Figure from source N].
 4. Organize your response with clear Markdown headings for subtopics (e.g., "### Scaled Dot-Product Attention Dimensions", "### Multi-Head Attention Dimensions") and bullet lists for dimensions/parameters.
-5. Use proper notation (e.g., $d_k$, $d_v$, $d_{model}$, $W^Q$) for all mathematical symbols.
+5. Use proper notation (e.g., $d_k$, $d_v$, $d_model$, $W^Q$) for all mathematical symbols.
 6. Do NOT fabricate information, statistics, or citations not present in the sources.
 
 Sources:
