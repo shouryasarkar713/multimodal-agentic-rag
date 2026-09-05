@@ -210,48 +210,43 @@ async def chat_endpoint(
     asst_msg = res_asst.scalar_one_or_none()
 
     if not asst_msg:
-        # If finalize node somehow didn't persist assistant message, fall back to final_state answer
-        logging.warning("Assistant message not found in DB after finalize_node; constructing fallback message.")
-        answer_text = final_state.get("generated_answer", "")
-        citations_list = final_state.get("citations", [])
-        figure_refs_list = final_state.get("figure_refs", [])
-        confidence_val = final_state.get("confidence_score", 1.0)
-    else:
-        answer_text = asst_msg.content
-        citations_list = asst_msg.citations or []
-        figure_refs_list = asst_msg.figure_refs or []
-        confidence_val = asst_msg.confidence_score if asst_msg.confidence_score is not None else 1.0
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Agent execution failed: assistant message was not created."
+        )
 
-    # 10. Map Citations
-    citation_items = []
-    for c in citations_list:
-        citation_items.append(CitationResponseItem(
-            chunk_id=c.get("chunk_id") or uuid.uuid4(),
-            document_id=c.get("document_id") or uuid.uuid4(),
-            document_title=c.get("document_title"),
-            filename=c.get("filename"),
-            page_number=c.get("page_number", 1),
+    # 10. Parse citations and figures into schema formats
+    citations_res = []
+    for c in asst_msg.citations or []:
+        citations_res.append(CitationResponseItem(
+            chunk_id=uuid.UUID(str(c["chunk_id"])),
+            document_id=uuid.UUID(str(c["document_id"])),
+            document_title=c.get("document_title", "Unknown"),
+            page_number=c["page_number"],
             section_title=c.get("section_title"),
-            excerpt=c.get("excerpt", ""),
+            excerpt=c["excerpt"],
             relevance_score=c.get("relevance_score", 5.0)
         ))
 
-    # 11. Map Figure References
-    figure_ref_items = []
-    for f in figure_refs_list:
-        figure_ref_items.append(FigureRefResponseItem(
-            chunk_id=f.get("chunk_id") or uuid.uuid4(),
-            document_id=f.get("document_id") or uuid.uuid4(),
-            image_path=f.get("image_path", ""),
-            caption=f.get("caption", ""),
-            page_number=f.get("page_number", 1)
+    figure_refs_res = []
+    for f in asst_msg.figure_refs or []:
+        figure_refs_res.append(FigureRefResponseItem(
+            chunk_id=uuid.UUID(str(f["chunk_id"])),
+            document_id=uuid.UUID(str(f["document_id"])),
+            image_path=f["image_path"],
+            caption=f["caption"],
+            page_number=f["page_number"]
         ))
 
-    # 12. Return ChatResponse payload
+    # Return structured Response
+    confidence_val = asst_msg.confidence if asst_msg.confidence is not None else 1.0
     return ChatResponse(
-        answer=answer_text,
-        citations=citation_items,
-        figure_refs=figure_ref_items,
-        confidence_score=confidence_val,
-        trace_id=trace_id
+        message_id=asst_msg.id,
+        content=asst_msg.content,
+        citations=citations_res,
+        figure_refs=figure_refs_res,
+        confidence=confidence_val,
+        trace_id=uuid.UUID(str(state_val)) if (state_val := final_state.get("trace_id")) else trace_id,
+        intent=final_state.get("classified_intent") or "paper_qa",
+        retrieval_types=final_state.get("retrieval_types") or ["text"]
     )
