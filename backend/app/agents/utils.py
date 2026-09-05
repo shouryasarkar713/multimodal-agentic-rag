@@ -36,7 +36,17 @@ def extract_json(content: str) -> Any:
         except Exception:
             pass
             
-    # 3. Match outermost [ ... ] or { ... }
+    # 3. Use JSONDecoder.raw_decode on every candidate start bracket (handles trailing text)
+    decoder = json.JSONDecoder()
+    start_indices = [i for i, c in enumerate(cleaned) if c in '{[']
+    for start in start_indices:
+        try:
+            obj, _ = decoder.raw_decode(cleaned[start:])
+            return obj
+        except Exception:
+            continue
+
+    # 4. Match outermost [ ... ] or { ... }
     bracket_match = re.search(r"([\[{].*[\]}])", cleaned, re.DOTALL)
     if bracket_match:
         try:
@@ -44,5 +54,5 @@ def extract_json(content: str) -> Any:
         except Exception:
             pass
             
-    # 4. Fallback to direct json.loads so exception detail is preserved
+    # 5. Fallback to direct json.loads so exception detail is preserved
     return json.loads(cleaned)

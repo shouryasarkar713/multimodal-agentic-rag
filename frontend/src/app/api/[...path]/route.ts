@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const maxDuration = 300;
 
 const BACKEND_URL = process.env.INTERNAL_BACKEND_URL || 'http://backend:8000';
 
@@ -20,10 +21,14 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
     }
   });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min timeout for agent execution
+
   const fetchOptions: RequestInit = {
     method: req.method,
     headers,
     cache: 'no-store',
+    signal: controller.signal,
   };
 
   if (!['GET', 'HEAD'].includes(req.method)) {
@@ -47,6 +52,7 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
 
   try {
     const res = await fetch(targetUrl, fetchOptions);
+    clearTimeout(timeoutId);
 
     console.log(`[Proxy] ${targetUrl} responded with ${res.status}`);
 
@@ -66,6 +72,7 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       headers: responseHeaders,
     });
   } catch (err: any) {
+    clearTimeout(timeoutId);
     console.error(`[Proxy] Error forwarding to ${targetUrl}:`, err);
     return NextResponse.json(
       { detail: `Backend proxy error: ${err.message}` },
