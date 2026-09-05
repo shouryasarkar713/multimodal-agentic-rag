@@ -82,3 +82,7 @@ graph.add_conditional_edges(
 )
 
 compiled_graph = graph.compile()
+
+def build_research_graph():
+    """Returns the compiled LangGraph StateGraph instance."""
+    return compiled_graph
