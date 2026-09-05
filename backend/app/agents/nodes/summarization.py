@@ -98,9 +98,20 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
             stmt_fallback = select(Chunk)
             if document_ids:
                 stmt_fallback = stmt_fallback.where(Chunk.document_id.in_(document_ids))
-            stmt_fallback = stmt_fallback.where(Chunk.content_type.in_(["text", "table"])).order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc()).limit(10)
+            stmt_fallback = stmt_fallback.where(Chunk.content_type.in_(["text", "table"])).order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc()).limit(15)
             res_fallback = await db.execute(stmt_fallback)
             chunks = res_fallback.scalars().all()
+
+        # Filter out short chunks that are purely author names, affiliations, or email addresses
+        substantive = []
+        for c in chunks:
+            txt = (c.content_text or c.content_markdown or "").strip()
+            # Skip short chunks (< 80 chars) that are purely author affiliations or emails
+            if len(txt) < 80 and ("@" in txt or "google brain" in txt.lower() or "google research" in txt.lower() or "university" in txt.lower()):
+                continue
+            substantive.append(c)
+        if substantive:
+            chunks = substantive
             
         # Format context
         context_parts = []
@@ -129,18 +140,58 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
             for d_id, d_title, d_fname in res_titles.all():
                 doc_titles[d_id] = d_title or d_fname
                 
-        # 4. Build citations
+        # 4. Build citations: match inline citations like [N] or [p. N]
+        import re
         citations = []
-        for c in chunks:
-            citations.append({
-                "chunk_id": str(c.id),
-                "document_id": str(c.document_id),
-                "document_title": doc_titles.get(c.document_id, "Unknown Document"),
-                "page_number": c.page_number,
-                "section_title": c.section_title or "General",
-                "excerpt": (c.content_text or "")[:200],
-                "relevance_score": 5.0
-            })
+        seen_citations = set()
+        
+        # Check standard [N] citations
+        inline_cits = re.findall(r'\[(\d+)\]', answer)
+        for num_str in inline_cits:
+            idx = int(num_str) - 1
+            if 0 <= idx < len(chunks):
+                c = chunks[idx]
+                if str(c.id) not in seen_citations:
+                    seen_citations.add(str(c.id))
+                    citations.append({
+                        "chunk_id": str(c.id),
+                        "document_id": str(c.document_id),
+                        "document_title": doc_titles.get(c.document_id, "Unknown Document"),
+                        "page_number": c.page_number,
+                        "section_title": c.section_title or "General",
+                        "excerpt": (c.content_text or c.content_markdown or "")[:200],
+                        "relevance_score": 5.0
+                    })
+                    
+        # Also check for [p. N] citations and match to chunks on that page
+        page_cits = re.findall(r'\[p\.?\s*(\d+)\]', answer, re.IGNORECASE)
+        for p_str in page_cits:
+            p_num = int(p_str)
+            matching_chunk = next((c for c in chunks if c.page_number == p_num and str(c.id) not in seen_citations), None)
+            if matching_chunk:
+                seen_citations.add(str(matching_chunk.id))
+                citations.append({
+                    "chunk_id": str(matching_chunk.id),
+                    "document_id": str(matching_chunk.document_id),
+                    "document_title": doc_titles.get(matching_chunk.document_id, "Unknown Document"),
+                    "page_number": matching_chunk.page_number,
+                    "section_title": matching_chunk.section_title or "General",
+                    "excerpt": (matching_chunk.content_text or matching_chunk.content_markdown or "")[:200],
+                    "relevance_score": 5.0
+                })
+
+        # Fallback if no inline citations found: include first 5 substantive chunks
+        if not citations:
+            for c in chunks[:5]:
+                citations.append({
+                    "chunk_id": str(c.id),
+                    "document_id": str(c.document_id),
+                    "document_title": doc_titles.get(c.document_id, "Unknown Document"),
+                    "page_number": c.page_number,
+                    "section_title": c.section_title or "General",
+                    "excerpt": (c.content_text or c.content_markdown or "")[:200],
+                    "relevance_score": 5.0
+                })
             
         duration_ms = int((time.time() - start_time) * 1000)
         logging.info(f"[Summarization] Summarized {target_desc} using {len(chunks)} chunks in {duration_ms}ms (length: {len(answer)} chars)")

@@ -44,9 +44,9 @@ Summarize the following content from a research paper. Follow these rules:
 2. Use bullet points for multiple findings
 3. Preserve technical accuracy — do not simplify formulas or method names
 4. At the end, add a "Key Takeaways" section with 2-3 bullet points
-5. Cite the source page numbers in parentheses, e.g., (p. 5)
+5. Base every claim on the numbered sources below and cite them inline using [1], [2], etc. corresponding to the source number. Do NOT write [p. 1] or (p. 1); strictly use [1], [2].
 
-Content to summarize:
+Sources:
 {context}
 
 Section/Figure being summarized: {target_description}"""
@@ -66,7 +66,7 @@ User Question: {query}
 Retrieved Chunks:
 {chunks_formatted}
 
-Respond with a JSON array of objects: [{{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}}, ...]"""
+Respond with a JSON array of objects: [{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}, ...]"""
 
 QUERY_REWRITE_PROMPT = """You are a query rewriting agent. The initial search did not find sufficiently relevant results.
 
