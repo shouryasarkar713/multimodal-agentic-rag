@@ -7,11 +7,13 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
   const url = new URL(req.url);
   const targetUrl = `${BACKEND_URL}/api/${path}${url.search}`;
 
-  const headers = new Headers();
+  console.log(`[Proxy] ${req.method} -> ${targetUrl}`);
+
+  const headers: Record<string, string> = {};
   req.headers.forEach((value, key) => {
     const k = key.toLowerCase();
     if (k !== 'host' && k !== 'connection' && k !== 'content-length') {
-      headers.set(key, value);
+      headers[k] = value;
     }
   });
 
@@ -22,22 +24,27 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
 
   if (!['GET', 'HEAD'].includes(req.method)) {
     try {
-      const body = await req.arrayBuffer();
-      if (body && body.byteLength > 0) {
-        fetchOptions.body = body;
+      const contentType = req.headers.get('content-type') || '';
+      if (contentType.includes('application/json') || contentType.includes('text/')) {
+        const text = await req.text();
+        if (text) {
+          fetchOptions.body = text;
+        }
+      } else {
+        const arrayBuf = await req.arrayBuffer();
+        if (arrayBuf && arrayBuf.byteLength > 0) {
+          fetchOptions.body = Buffer.from(arrayBuf);
+        }
       }
-    } catch {
-      // Body may be empty
+    } catch (err) {
+      console.error(`[Proxy] Error reading body for ${targetUrl}:`, err);
     }
   }
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3-minute timeout for LLM inference
-    fetchOptions.signal = controller.signal;
-
     const res = await fetch(targetUrl, fetchOptions);
-    clearTimeout(timeoutId);
+
+    console.log(`[Proxy] ${targetUrl} responded with ${res.status}`);
 
     const responseHeaders = new Headers();
     res.headers.forEach((val, key) => {
@@ -47,15 +54,15 @@ async function handleProxy(req: NextRequest, { params }: { params: { path: strin
       }
     });
 
-    const responseBody = await res.arrayBuffer();
+    const responseData = await res.arrayBuffer();
 
-    return new NextResponse(responseBody, {
+    return new NextResponse(responseData, {
       status: res.status,
       statusText: res.statusText,
       headers: responseHeaders,
     });
   } catch (err: any) {
-    console.error(`Proxy error for ${targetUrl}:`, err);
+    console.error(`[Proxy] Error forwarding to ${targetUrl}:`, err);
     return NextResponse.json(
       { detail: `Backend proxy error: ${err.message}` },
       { status: 504 }
