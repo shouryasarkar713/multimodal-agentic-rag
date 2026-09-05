@@ -5,6 +5,7 @@ import logging
 from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import QUERY_UNDERSTANDING_PROMPT
+from app.agents.utils import extract_json
 
 async def query_understanding_node(state: AgentState) -> dict:
     """Parse and classify user query."""
@@ -39,15 +40,9 @@ async def query_understanding_node(state: AgentState) -> dict:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
-        
-        # Clean JSON markdown fences if present
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-        
-        parsed_json = json.loads(content)
+        parsed_json = extract_json(content)
+        if not isinstance(parsed_json, dict):
+            parsed_json = {}
         duration_ms = int((time.time() - start_time) * 1000)
         
         # Record trace step

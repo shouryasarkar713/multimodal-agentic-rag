@@ -4,6 +4,7 @@ import logging
 from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import QUERY_REWRITE_PROMPT
+from app.agents.utils import clean_thinking
 
 async def query_rewriter_node(state: AgentState) -> dict:
     """Rewrite query to improve search results when the previous attempt retrieved low-relevance evidence."""
@@ -32,7 +33,7 @@ async def query_rewriter_node(state: AgentState) -> dict:
     try:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
-        rewritten = response.content.strip()
+        rewritten = clean_thinking(response.content.strip())
         
         # Clean quotes if LLM wrapped it in quotes
         if (rewritten.startswith('"') and rewritten.endswith('"')) or (rewritten.startswith("'") and rewritten.endswith("'")):

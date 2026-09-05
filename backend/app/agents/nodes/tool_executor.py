@@ -14,6 +14,7 @@ from app.config import settings
 from app.models.db import Chunk, Document
 from app.agents.state import AgentState
 from app.agents.prompts import EXPLAIN_FIGURE_PROMPT, SUMMARIZATION_PROMPT
+from app.agents.utils import clean_thinking
 from langchain_core.messages import HumanMessage
 
 def get_image_base64(image_path: str) -> str:
@@ -164,7 +165,7 @@ async def explain_figure_action(state: AgentState, db: AsyncSession, document_id
 
     msg = HumanMessage(content=content)
     response = await llm.ainvoke([msg])
-    answer = response.content.strip()
+    answer = clean_thinking(response.content.strip())
 
     # Build citation and figure ref
     citations = []
@@ -236,7 +237,7 @@ async def summarize_section_action(state: AgentState, db: AsyncSession, document
 
     llm = get_generation_llm()
     response = await llm.ainvoke(prompt)
-    answer = response.content.strip()
+    answer = clean_thinking(response.content.strip())
 
     citations = []
     for c in chunks:

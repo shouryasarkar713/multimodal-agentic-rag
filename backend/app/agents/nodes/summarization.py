@@ -9,6 +9,7 @@ from app.config import settings
 from app.models.db import Chunk, Document
 from app.agents.state import AgentState
 from app.agents.prompts import SUMMARIZATION_PROMPT
+from app.agents.utils import clean_thinking
 
 async def summarization_node(state: AgentState, config: dict) -> dict:
     """Summarize a specific section, figure, or document."""
@@ -95,8 +96,8 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
         # If no chunks found, fall back to first few pages
         if not chunks:
             stmt_fallback = select(Chunk)
-            if resolved_doc_ids:
-                stmt_fallback = stmt_fallback.where(Chunk.document_id.in_(resolved_doc_ids))
+            if document_ids:
+                stmt_fallback = stmt_fallback.where(Chunk.document_id.in_(document_ids))
             stmt_fallback = stmt_fallback.where(Chunk.content_type.in_(["text", "table"])).order_by(Chunk.page_number.asc(), Chunk.chunk_index.asc()).limit(10)
             res_fallback = await db.execute(stmt_fallback)
             chunks = res_fallback.scalars().all()
@@ -117,7 +118,7 @@ async def summarization_node(state: AgentState, config: dict) -> dict:
 
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
-        answer = response.content.strip()
+        answer = clean_thinking(response.content.strip())
         
         # 3. Resolve Document Titles for citations
         all_doc_ids = list(set([c.document_id for c in chunks]))

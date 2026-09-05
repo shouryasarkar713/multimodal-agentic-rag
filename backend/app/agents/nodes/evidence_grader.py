@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import EVIDENCE_GRADING_PROMPT
+from app.agents.utils import extract_json
 
 async def evidence_grader_node(state: AgentState) -> dict:
     """Grade the retrieved chunks to determine if they contain sufficient evidence to answer the query."""
@@ -101,18 +102,34 @@ async def evidence_grader_node(state: AgentState) -> dict:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
+        parsed_scores = extract_json(content)
         
-        # Clean JSON markdown fences
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-        
-        parsed_scores = json.loads(content)
-        
-        # Build score lookup map
-        scores_map = {item["chunk_index"]: float(item["score"]) for item in parsed_scores}
+        # Build score lookup map with flexible key matching
+        scores_map = {}
+        if isinstance(parsed_scores, list):
+            for idx, item in enumerate(parsed_scores):
+                if isinstance(item, dict):
+                    key = None
+                    for k in ["chunk_index", '"chunk_index"', "index", "chunk", "id"]:
+                        if k in item:
+                            key = item[k]
+                            break
+                    if key is None:
+                        key = idx
+                    
+                    score_val = None
+                    for sk in ["score", '"score"', "relevance_score", "relevance"]:
+                        if sk in item:
+                            score_val = item[sk]
+                            break
+                    if score_val is None:
+                        score_val = 3.0
+                    try:
+                        scores_map[int(key)] = float(score_val)
+                    except Exception:
+                        scores_map[idx] = float(score_val)
+                elif isinstance(item, (int, float)):
+                    scores_map[idx] = float(item)
         
         # Assign scores to chunks_to_grade in order
         evidence_scores = []
@@ -172,8 +189,13 @@ async def evidence_grader_node(state: AgentState) -> dict:
         logging.error(f"Error in evidence_grader_node: {e}")
         duration_ms = int((time.time() - start_time) * 1000)
         
-        # Safe default: mark as sufficient to prevent infinite loops, log error
+        # Safe default: mark as sufficient with default 3.0 scores to preserve context in downstream nodes
         fallback_scores = [3.0] * len(chunks_to_grade)
+        fallback_chunks = []
+        for c in retrieved_chunks:
+            chunk_copy = dict(c)
+            chunk_copy["evidence_score"] = 3.0
+            fallback_chunks.append(chunk_copy)
         
         step = {
             "step_name": "evidence_grader",
@@ -186,6 +208,7 @@ async def evidence_grader_node(state: AgentState) -> dict:
         return {
             "evidence_scores": fallback_scores,
             "evidence_sufficient": True,
+            "retrieved_chunks": fallback_chunks,
             "trace_steps": (state.get("trace_steps") or []) + [step]
         }
 

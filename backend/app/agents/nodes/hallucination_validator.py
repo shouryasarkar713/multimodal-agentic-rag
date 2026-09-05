@@ -6,6 +6,7 @@ from app.agents.llm_factory import get_generation_llm
 from app.config import settings
 from app.agents.state import AgentState
 from app.agents.prompts import HALLUCINATION_VALIDATION_PROMPT
+from app.agents.utils import extract_json
 
 async def hallucination_validator_node(state: AgentState) -> dict:
     """Validate that every cited claim in the generated answer exists in the retrieved context."""
@@ -39,15 +40,9 @@ async def hallucination_validator_node(state: AgentState) -> dict:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
-        
-        # Clean JSON markdown fences
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-        
-        parsed_json = json.loads(content)
+        parsed_json = extract_json(content)
+        if not isinstance(parsed_json, dict):
+            parsed_json = {}
         overall_supported = parsed_json.get("overall_supported", True)
         
         claims = parsed_json.get("claims") or []

@@ -11,6 +11,7 @@ from app.models.db import Document
 from app.agents.state import AgentState
 from app.agents.prompts import MULTI_HOP_DECOMPOSITION_PROMPT
 from app.agents.nodes.retrieval_orchestrator import retrieval_orchestrator_node
+from app.agents.utils import extract_json
 
 async def multi_hop_decomposition_node(state: AgentState, config: dict) -> dict:
     """Decompose comparison queries into simpler sub-queries and retrieve chunks for each."""
@@ -44,17 +45,13 @@ async def multi_hop_decomposition_node(state: AgentState, config: dict) -> dict:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
-        
-        # Clean JSON markdown fences
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-        
-        sub_queries = json.loads(content)
-        if not isinstance(sub_queries, list):
-            raise ValueError("LLM did not return a JSON list of sub-queries.")
+        parsed_sub = extract_json(content)
+        if isinstance(parsed_sub, list):
+            sub_queries = [str(q) for q in parsed_sub]
+        elif isinstance(parsed_sub, dict) and "sub_queries" in parsed_sub:
+            sub_queries = [str(q) for q in parsed_sub["sub_queries"]]
+        else:
+            sub_queries = [user_query]
             
         # 2. Invoke retrieval_orchestrator for each sub-query
         merged_chunks_map = {}

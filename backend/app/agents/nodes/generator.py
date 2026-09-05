@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 from app.agents.llm_factory import get_generation_llm
 from app.agents.state import AgentState
 from app.agents.prompts import GENERATION_PROMPT
+from app.agents.utils import clean_thinking
 
 async def generator_node(state: AgentState) -> dict:
     """Generate final answer using retrieved context and query history."""
@@ -60,7 +61,7 @@ async def generator_node(state: AgentState) -> dict:
     try:
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
-        answer = response.content.strip()
+        answer = clean_thinking(response.content.strip())
         
         # 3. Parse inline citations [N]
         citations = []
