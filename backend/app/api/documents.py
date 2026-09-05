@@ -4,7 +4,7 @@ import fitz  # PyMuPDF
 import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from typing import List
 
 from app.dependencies import get_db, verify_api_key
@@ -71,7 +71,6 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File exceeds maximum page limit of 100 pages."
         )
-        
     # Check if a document with the same filename already exists
     stmt_check = select(Document).where(Document.filename == file.filename)
     result_check = await db.execute(stmt_check)
@@ -170,26 +169,29 @@ async def get_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db
         .group_by(Chunk.content_type)
     )
     result = await db.execute(stmt)
-    counts_map = {row[0]: row[1] for row in result.all()}
+    counts = dict(result.all())
+    
+    chunk_counts = ChunkCounts(
+        text=counts.get("text", 0),
+        table=counts.get("table", 0),
+        image=counts.get("image", 0)
+    )
     
     return DocumentDetailResponse(
         id=doc.id,
         filename=doc.filename,
         title=doc.title,
         authors=doc.authors,
+        abstract=doc.abstract,
         total_pages=doc.total_pages,
         status=doc.status,
-        created_at=doc.created_at,
-        chunk_counts=ChunkCounts(
-            text=counts_map.get("text", 0),
-            table=counts_map.get("table", 0),
-            image=counts_map.get("image", 0)
-        )
+        chunk_counts=chunk_counts,
+        created_at=doc.created_at
     )
 
 @router.delete("/{document_id}", response_model=DeleteResponse)
 async def delete_document(document_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """Delete a document, its database records, chunks, embeddings and physical files."""
+    """Delete a document and all its chunks, embeddings, and physical files."""
     doc = await db.get(Document, document_id)
     if not doc:
         raise HTTPException(
@@ -254,6 +256,59 @@ async def get_document_figures(document_id: uuid.UUID, db: AsyncSession = Depend
         ))
         
     return FiguresResponse(figures=figures)
+    
+@router.post("/{document_id}/reprocess", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def reprocess_document(
+    document_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """Reprocess an existing document using updated ingestion and figure extraction."""
+    doc = await db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found"
+        )
+        
+    pdf_path = f"/data/uploads/{document_id}.pdf"
+    if not os.path.exists(pdf_path):
+        # Also check doc.file_path
+        if doc.file_path and os.path.exists(doc.file_path):
+            pdf_path = doc.file_path
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="PDF file not found on disk"
+            )
+            
+    # Delete old figure images on disk
+    stmt_img = select(Chunk.image_path).where(
+        Chunk.document_id == document_id, 
+        Chunk.content_type == "image"
+    )
+    res_img = await db.execute(stmt_img)
+    img_paths = res_img.scalars().all()
+    for path in img_paths:
+        if path and os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception as e:
+                logging.error(f"Error removing old figure file {path}: {e}")
+                
+    # Delete all chunks for this document
+    await db.execute(delete(Chunk).where(Chunk.document_id == document_id))
+    doc.status = "processing"
+    doc.error_message = None
+    await db.commit()
+    
+    background_tasks.add_task(run_ingestion_pipeline, document_id)
+    return UploadResponse(
+        document_id=document_id,
+        filename=doc.filename,
+        status="processing",
+        message="Document reprocessing started in background."
+    )
 
 @router.post("/download_arxiv", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def download_arxiv(
@@ -294,7 +349,6 @@ async def download_arxiv(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Could not open downloaded PDF."
         )
-        
     # Check if a document with the same filename already exists
     stmt_check = select(Document).where(Document.filename == filename)
     result_check = await db.execute(stmt_check)

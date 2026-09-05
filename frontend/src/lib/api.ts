@@ -69,6 +69,12 @@ export const api = {
     return apiFetch(`/documents/${id}/figures`);
   },
 
+  async reprocessDocument(id: string): Promise<{ document_id: string; filename: string; status: string; message: string }> {
+    return apiFetch(`/documents/${id}/reprocess`, {
+      method: 'POST',
+    });
+  },
+
   // Session Endpoints
   async createSession(title?: string): Promise<Session> {
     return apiFetch('/sessions', {

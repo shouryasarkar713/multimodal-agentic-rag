@@ -50,13 +50,19 @@ async def run_ingestion_pipeline(document_id: uuid.UUID):
             table_chunks = chunk_tables(extracted_tables)
             
             # Step 7: Image Chunk Creation + Captioning
-            # Use surrounding text context as caption (fast, no API calls needed).
+            # Preserve extracted caption; fallback to surrounding page context only if caption is missing.
             # CLIP image embeddings still enable visual similarity search.
             image_chunks = create_image_chunks(extracted_figures)
-            for ic in image_chunks:
+            for ic, f in zip(image_chunks, extracted_figures):
                 page_data = next((p for p in pages_content if p.page_number == ic.page_number), None)
-                context_text = page_data.full_text[:500] if page_data else ""
-                ic.image_caption = f"Figure from page {ic.page_number}. {context_text}"
+                context_text = page_data.full_text[:300] if page_data else ""
+                if f.caption:
+                    ic.image_caption = f.caption
+                    ic.content_text = f.caption
+                else:
+                    fallback_cap = f"Figure from page {ic.page_number}. {context_text}"
+                    ic.image_caption = fallback_cap
+                    ic.content_text = fallback_cap
             
             # Combine all chunks
             all_chunks = text_chunks + table_chunks + image_chunks

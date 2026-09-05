@@ -183,6 +183,7 @@ def create_image_chunks(figures: List[ExtractedFigure]) -> List[Chunk]:
             section_title=f.section_title,
             bbox_json=f.bbox,
             image_path=f.image_path,
+            image_caption=caption,
             token_count=token_count
         )
         chunks.append(chunk)
