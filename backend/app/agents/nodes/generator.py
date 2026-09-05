@@ -44,12 +44,14 @@ async def generator_node(state: AgentState) -> dict:
     # Format chat history
     chat_history_str = "\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in chat_history])
     
-    # 1. Build prompt
-    prompt = GENERATION_PROMPT.format(
-        formatted_context=formatted_context,
-        chat_history=chat_history_str,
-        user_query=user_query
+    # 1. Build prompt safely avoiding KeyError from any LaTeX curly braces
+    prompt = (
+        GENERATION_PROMPT
+        .replace("{formatted_context}", formatted_context)
+        .replace("{chat_history}", chat_history_str)
+        .replace("{user_query}", user_query)
     )
+
     
     # 2. Append stricter instructions if re-generating after validation failure
     if validation_passed is False:
