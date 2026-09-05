@@ -22,12 +22,12 @@ from langchain_core.embeddings import Embeddings
 
 
 class NVIDIACompatibilityEmbeddings(Embeddings):
-    """Wrapper to support NVIDIA NIM embeddings (native 1536-dim via dimensions param) via OpenAI-compatible API."""
+    """Wrapper to support NVIDIA NIM embeddings (e.g. nvidia/nemotron-3-embed-1b) via OpenAI-compatible API."""
     def __init__(self, model: str, openai_api_key: str, base_url: str, dimensions: int = 1536):
         self.model = model
         self.api_key = openai_api_key
         self.base_url = base_url.rstrip("/")
-        self.embedding_dim = dimensions  # Native dimension from API (no truncation needed)
+        self.embedding_dim = dimensions
 
     def _build_payload(self, texts: List[str], input_type: str = None) -> dict:
         """Build payload for NVIDIA embedding API."""
@@ -36,8 +36,26 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
             "input": texts,
             "encoding_format": "float"
         }
-        # nv-embed-v1: native 1536-dim, symmetric model - no dimensions param, no input_type
+        if input_type:
+            payload["input_type"] = input_type
         return payload
+
+    def _process_embeddings(self, data: dict) -> List[List[float]]:
+        """Extract and normalize/truncate embeddings to 1536 dimensions."""
+        import numpy as np
+        embeddings = []
+        for item in data.get("data", []):
+            emb = item.get("embedding", [])
+            if len(emb) > 1536:
+                vec = np.array(emb[:1536], dtype=np.float32)
+                norm = np.linalg.norm(vec)
+                if norm > 0:
+                    vec = vec / norm
+                emb = vec.tolist()
+            elif len(emb) < 1536:
+                emb = emb + [0.0] * (1536 - len(emb))
+            embeddings.append(emb)
+        return embeddings
 
     def _make_request(self, texts: List[str], input_type: str = None) -> List[List[float]]:
         """Make request to NVIDIA embedding API with proper format."""
@@ -60,15 +78,12 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
                 with httpx.Client(timeout=httpx.Timeout(120.0, connect=10.0, read=120.0), limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)) as client:
                     res = client.post(url, json=payload, headers=headers)
                     if res.status_code == 200:
-                        data = res.json()
-                        embeddings = []
-                        for item in data.get("data", []):
-                            emb = item.get("embedding", [])
-                            # Truncate to 1536 dimensions for pgvector compatibility (nv-embed-v1 returns 4096)
-                            if len(emb) > 1536:
-                                emb = emb[:1536]
-                            embeddings.append(emb)
-                        return embeddings
+                        return self._process_embeddings(res.json())
+                    elif res.status_code == 422 and "input_type" in payload:
+                        # Retry without input_type if model does not support it
+                        logging.warning(f"NVIDIA embedding 422 with input_type={input_type}, retrying without it.")
+                        payload.pop("input_type", None)
+                        continue
                     elif res.status_code == 429:
                         raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
                     elif res.status_code >= 500:
@@ -120,15 +135,11 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
                 async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0, read=120.0), limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)) as client:
                     res = await client.post(url, json=payload, headers=headers)
                     if res.status_code == 200:
-                        data = res.json()
-                        embeddings = []
-                        for item in data.get("data", []):
-                            emb = item.get("embedding", [])
-                            # Truncate to 1536 dimensions for pgvector compatibility
-                            if len(emb) > 1536:
-                                emb = emb[:1536]
-                            embeddings.append(emb)
-                        return embeddings
+                        return self._process_embeddings(res.json())
+                    elif res.status_code == 422 and "input_type" in payload:
+                        logging.warning(f"NVIDIA embedding 422 with input_type={input_type}, retrying without it.")
+                        payload.pop("input_type", None)
+                        continue
                     elif res.status_code == 429:
                         raise httpx.HTTPStatusError("Rate Limit", request=res.request, response=res)
                     elif res.status_code >= 500:
@@ -160,26 +171,25 @@ class NVIDIACompatibilityEmbeddings(Embeddings):
         raise Exception(f"Failed to query NVIDIA embeddings async after {max_retries} attempts. Last error: {last_error}")
 
     def embed_query(self, text: str) -> List[float]:
-        return self._make_request([text])[0]
+        return self._make_request([text], input_type="query")[0]
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        # Process in smaller batches for NVIDIA API stability
         all_embeddings = []
         batch_size = 50
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            all_embeddings.extend(self._make_request(batch))
+            all_embeddings.extend(self._make_request(batch, input_type="passage"))
         return all_embeddings
 
     async def aembed_query(self, text: str) -> List[float]:
-        return (await self._make_request_async([text]))[0]
+        return (await self._make_request_async([text], input_type="query"))[0]
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
         all_embeddings = []
         batch_size = 50
         for i in range(0, len(texts), batch_size):
             batch = texts[i:i + batch_size]
-            all_embeddings.extend(await self._make_request_async(batch))
+            all_embeddings.extend(await self._make_request_async(batch, input_type="passage"))
         return all_embeddings
 
 
@@ -521,10 +531,10 @@ def get_embeddings_model() -> Embeddings:
 
         # Fallback if deprecated NVIDIA model is specified
         if "nv-embed-v1" in (model_name or ""):
-            logging.warning("nvidia/nv-embed-v1 is deprecated/retired. Falling back to Gemini text-embedding-004.")
-            model_name = "text-embedding-004"
-            base_url = settings.openai_api_base or "https://generativelanguage.googleapis.com/v1beta/openai/"
-            api_key = settings.openai_api_key
+            logging.warning("nvidia/nv-embed-v1 is deprecated/retired. Falling back to nvidia/nemotron-3-embed-1b.")
+            model_name = "nvidia/nemotron-3-embed-1b"
+            base_url = "https://integrate.api.nvidia.com/v1"
+            api_key = os.environ.get("EMBEDDING_OPENAI_API_KEY") or os.environ.get("LLM_OPENAI_API_KEY") or settings.openai_api_key
 
         if _is_gemini_base_url(base_url):
             if api_key and api_key.startswith("nvapi-"):

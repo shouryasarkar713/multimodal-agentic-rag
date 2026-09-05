@@ -36,9 +36,9 @@ services:
       - LLM_OPENAI_API_KEY=${LLM_OPENAI_API_KEY}
       - LLM_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
       - LLM_OPENAI_MODEL_NAME=mistralai/mistral-medium-3.5-128b
-      - EMBEDDING_OPENAI_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai/
-      - EMBEDDING_OPENAI_MODEL_NAME=text-embedding-004
-      - EMBEDDING_OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EMBEDDING_OPENAI_API_KEY=${EMBEDDING_OPENAI_API_KEY}
+      - EMBEDDING_OPENAI_API_BASE=https://integrate.api.nvidia.com/v1
+      - EMBEDDING_OPENAI_MODEL_NAME=nvidia/nemotron-3-embed-1b
     env_file:
       - .env
     depends_on:
