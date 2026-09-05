@@ -31,12 +31,11 @@ async def hallucination_validator_node(state: AgentState) -> dict:
             }]
         }
         
-    prompt = HALLUCINATION_VALIDATION_PROMPT.format(
-        generated_answer=answer,
-        formatted_context=formatted_context
-    )
-    
     try:
+        prompt = HALLUCINATION_VALIDATION_PROMPT.format(
+            generated_answer=answer,
+            formatted_context=formatted_context
+        )
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()

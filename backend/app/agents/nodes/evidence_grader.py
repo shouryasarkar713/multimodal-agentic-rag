@@ -93,12 +93,11 @@ async def evidence_grader_node(state: AgentState) -> dict:
         )
     chunks_formatted = "\n".join(formatted_list)
     
-    prompt = EVIDENCE_GRADING_PROMPT.format(
-        query=query_text,
-        chunks_formatted=chunks_formatted
-    )
-    
     try:
+        prompt = EVIDENCE_GRADING_PROMPT.format(
+            query=query_text,
+            chunks_formatted=chunks_formatted
+        )
         llm = get_generation_llm()
         response = await llm.ainvoke(prompt)
         content = response.content.strip()
