@@ -13,23 +13,140 @@ interface ChatMessageProps {
   message: Message;
 }
 
+const GREEK_MAP: Record<string, string> = {
+  alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ε',
+  zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'θ', iota: 'ι', kappa: 'κ',
+  lambda: 'λ', mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', varpi: 'ϖ', rho: 'ρ',
+  varrho: 'ϱ', sigma: 'σ', varsigma: 'ς', tau: 'τ', upsilon: 'υ', phi: 'φ',
+  varphi: 'ϕ', chi: 'χ', psi: 'ψ', omega: 'ω',
+  Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π',
+  Sigma: 'Σ', Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+};
+
+const SYMBOL_MAP: Record<string, string> = {
+  le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', neq: '≠',
+  approx: '≈', in: '∈', notin: '∉', ni: '∋', subset: '⊂',
+  subseteq: '⊆', supset: '⊃', supseteq: '⊇', cap: '∩', cup: '∪',
+  setminus: '∖', times: '×', cdot: '·', pm: '±', mp: '∓',
+  to: '→', rightarrow: '→', leftarrow: '←', leftrightarrow: '↔',
+  implies: '⇒', iff: '⇔', infty: '∞', forall: '∀', exists: '∃',
+  nabla: '∇', partial: '∂', angle: '∠', circ: '∘',
+  'mathbb{R}': 'ℝ', 'mathbb{Z}': 'ℤ', 'mathbb{N}': 'ℕ', 'mathbb{Q}': 'ℚ', 'mathbb{C}': 'ℂ',
+};
+
+const SUBSCRIPTS: Record<string, string> = {
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+  'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
+  'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
+  'p': 'ₚ', 'r': 'ᵣ', 's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ',
+  'v': 'ᵥ', 'x': 'ₓ',
+};
+
+const SUPERSCRIPTS: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+  '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+  'i': 'ⁱ', 'j': 'ʲ', 'n': 'ⁿ', 't': 'ᵗ',
+};
+
+function formatMathFallback(tex: string): string {
+  let s = tex;
+  for (const [name, sym] of Object.entries(GREEK_MAP)) {
+    s = s.replace(new RegExp(`\\\\${name}\\b`, 'g'), sym);
+  }
+  for (const [name, sym] of Object.entries(SYMBOL_MAP)) {
+    s = s.replace(new RegExp(`\\\\${name}\\b`, 'g'), sym);
+  }
+  s = s.replace(/'/g, '′');
+  s = s.replace(/_\{([0-9a-z\+\-\(\)]+)\}/gi, (_, content) => {
+    let converted = '';
+    for (const ch of content) converted += SUBSCRIPTS[ch.toLowerCase()] || ch;
+    return converted;
+  });
+  s = s.replace(/_([0-9a-z\+\-\(\)])/gi, (_, char) => SUBSCRIPTS[char.toLowerCase()] || `_${char}`);
+  s = s.replace(/\^\{([0-9a-z\+\-\(\)]+)\}/gi, (_, content) => {
+    let converted = '';
+    for (const ch of content) converted += SUPERSCRIPTS[ch.toLowerCase()] || ch;
+    return converted;
+  });
+  s = s.replace(/\^([0-9a-z\+\-\(\)])/gi, (_, char) => SUPERSCRIPTS[char.toLowerCase()] || `^${char}`);
+  s = s.replace(/\\(?:text|mathrm|mathbf|mathit)\{([^}]+)\}/g, '$1');
+  s = s.replace(/[\{\}]/g, '');
+  s = s.replace(/\\/g, '');
+  return s;
+}
+
+function MathRenderer({ math, displayMode }: { math: string; displayMode?: boolean }) {
+  const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).katex) {
+      try {
+        const html = (window as any).katex.renderToString(math, {
+          displayMode: !!displayMode,
+          throwOnError: false,
+        });
+        setRenderedHtml(html);
+      } catch {
+        // Fallback to formatted unicode
+      }
+    }
+  }, [math, displayMode]);
+
+  if (renderedHtml) {
+    return (
+      <span
+        className={displayMode ? "block my-2 text-center overflow-x-auto text-primary" : "inline-block px-1 align-baseline"}
+        dangerouslySetInnerHTML={{ __html: renderedHtml }}
+      />
+    );
+  }
+
+  const fallback = formatMathFallback(math);
+  return (
+    <span
+      className={`font-serif italic text-cyan-300 font-semibold tracking-wide ${
+        displayMode ? "block my-2 text-center text-sm py-1 bg-slate-900/40 rounded px-2" : "inline-block px-0.5"
+      }`}
+      title={math}
+    >
+      {fallback}
+    </span>
+  );
+}
+
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const hasCitations = message.citations && message.citations.length > 0;
   const hasFigures = message.figure_refs && message.figure_refs.length > 0;
 
-  const processTextWithCitations = (text: string) => {
-    const regex = /(\[(\d+)\]|\[citation not found\]|\[Figure from source (\d+)\])/g;
-    const parts = text.split(regex);
+  const processTextWithMathAndCitations = (text: string) => {
+    // Matches display math ($$...$$), inline math ($...$), citations ([N]), and figure refs
+    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?:\\\$|[^\$\n])+\$|\[\d+\]|\[citation not found\]|\[Figure from source \d+\])/g;
+    const parts = text.split(tokenRegex);
     if (parts.length === 1) {
-      return text;
+      // Clean any isolated latex commands in plain text
+      return formatMathFallback(text);
     }
 
     return parts.map((part, idx) => {
-      if (part === undefined) return null;
-      if (/^\d+$/.test(part)) return null;
-      
-      // If it matches [N]
+      if (!part) return null;
+
+      // 1. Display Math: $$ ... $$
+      if (part.startsWith('$$') && part.endsWith('$$') && part.length >= 4) {
+        const math = part.slice(2, -2).trim();
+        return <MathRenderer key={idx} math={math} displayMode={true} />;
+      }
+
+      // 2. Inline Math: $ ... $
+      if (part.startsWith('$') && part.endsWith('$') && part.length >= 2) {
+        const math = part.slice(1, -1).trim();
+        return <MathRenderer key={idx} math={math} displayMode={false} />;
+      }
+
+      // 3. Citations: [N]
       if (part.startsWith('[') && part.endsWith(']')) {
         if (part === '[citation not found]') {
           return (
@@ -54,7 +171,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         // Standard citation [N]
         const num = parseInt(part.slice(1, -1), 10);
         const matchedCitation = message.citations?.[num - 1];
-        
+
         if (matchedCitation) {
           return (
             <span
@@ -83,13 +200,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </span>
         );
       }
-      return part;
+
+      // 4. Plain text: format any lone LaTeX backslash symbols
+      return formatMathFallback(part);
     });
   };
 
   const renderWithCitations = (node: React.ReactNode): React.ReactNode => {
     if (typeof node === 'string') {
-      return processTextWithCitations(node);
+      return processTextWithMathAndCitations(node);
     }
     if (React.isValidElement(node)) {
       if (node.props.children) {
@@ -125,7 +244,22 @@ export function ChatMessage({ message }: ChatMessageProps) {
   // Render text content and highlight citations/figures
   const renderMessageBody = (text: string) => {
     if (isUser) {
-      return <p className="whitespace-pre-wrap leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium">{text}</p>;
+      const isFigureQuery = text.includes('[EXPLAIN_FIGURE:');
+      const cleanText = text.replace(/\[EXPLAIN_FIGURE:\s*[a-f0-9\-]+\]\s*/i, '');
+      const displayText = formatMathFallback(cleanText);
+
+      return (
+        <div className="flex flex-col gap-1 items-end">
+          {isFigureQuery && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm bg-primary/15 border border-primary/30 text-primary text-[8px] font-tech-mono font-bold uppercase tracking-wider mb-1">
+              Figure Analysis Query
+            </span>
+          )}
+          <p className="whitespace-pre-wrap leading-relaxed font-editorial-serif text-slate-200 text-sm md:text-base font-medium text-right">
+            {displayText}
+          </p>
+        </div>
+      );
     }
 
     return (

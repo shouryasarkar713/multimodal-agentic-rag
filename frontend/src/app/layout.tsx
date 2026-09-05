@@ -19,6 +19,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+          crossOrigin="anonymous"
+        />
+        <script
+          defer
+          src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+          crossOrigin="anonymous"
+        ></script>
+      </head>
       <body className={`${ebGaramond.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans antialiased text-slate-200 bg-background`}>
         <AppLayout>{children}</AppLayout>
       </body>
