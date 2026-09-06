@@ -17,7 +17,7 @@ def _build_chat_openai(
     base_url: str | None = None,
     temperature: float = 0.0,
     max_tokens: int | None = None,
-    timeout: float = 45.0,
+    timeout: float = 60.0,
     max_retries: int = 2,
     **extra: Any,
 ) -> ChatOpenAI:
@@ -86,7 +86,7 @@ def get_generation_llm() -> Runnable:
         base_url=base_url,
         temperature=temperature,
         max_tokens=max_tokens,
-        timeout=30.0,
+        timeout=60.0,
         max_retries=1,
     )
 
@@ -102,7 +102,7 @@ def get_generation_llm() -> Runnable:
                 base_url=base_url,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=30.0,
+                timeout=60.0,
                 max_retries=1,
             )
         )
@@ -118,7 +118,7 @@ def get_generation_llm() -> Runnable:
                 base_url=gemini_base,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=30.0,
+                timeout=60.0,
                 max_retries=1,
             )
         )
