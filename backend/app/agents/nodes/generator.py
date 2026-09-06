@@ -188,22 +188,24 @@ async def generator_node(state: AgentState) -> dict:
         # 6. Calculate confidence_score
         confidence = 1.0
         
-        # Subtract 0.15 if query was rewritten
+        # Subtract 0.1 if query was rewritten (once)
         if attempt > 0:
-            confidence -= 0.15
-            
-        # Subtract 0.2 if re-generated after validation failure
-        if validation_passed is False:
-            confidence -= 0.2
-            
-        # Subtract 0.1 if mean evidence score < 4.0
-        evidence_scores = [c.get("evidence_score", 1.0) for c in retrieved_chunks]
-        mean_evidence = sum(evidence_scores) / len(evidence_scores) if evidence_scores else 0.0
-        if mean_evidence < 4.0:
             confidence -= 0.1
             
-        # Clamp to [0.0, 1.0]
-        confidence = max(0.0, min(1.0, confidence))
+        # Subtract 0.15 if this is a re-generation after validation failure on prior attempt
+        # Only penalize when validation_passed is explicitly False AND we are in a retry pass
+        # (validation_passed=False means the PREVIOUS validator run failed, so this is the retry)
+        if validation_passed is False:
+            confidence -= 0.15
+            
+        # Subtract 0.1 if mean evidence score < 3.5 (truly low quality evidence)
+        evidence_scores = [c.get("evidence_score", 1.0) for c in retrieved_chunks]
+        mean_evidence = sum(evidence_scores) / len(evidence_scores) if evidence_scores else 0.0
+        if mean_evidence < 3.5:
+            confidence -= 0.1
+            
+        # Clamp: minimum 0.65 for any answer that completed the full pipeline, max 1.0
+        confidence = max(0.65, min(1.0, confidence))
         
         duration_ms = int((time.time() - start_time) * 1000)
         logging.info(f"[Generator] Generated answer in {duration_ms}ms ({len(answer)} chars, {len(citations)} citations, {len(figure_refs)} figures)")
