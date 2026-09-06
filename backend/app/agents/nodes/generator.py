@@ -65,43 +65,77 @@ async def generator_node(state: AgentState) -> dict:
         response = await llm.ainvoke(prompt)
         answer = clean_thinking(response.content.strip())
         
-        # 3. Parse all inline references: standard [N] and figure citations [Figure from source N]
+        # 3. Parse all inline references: standard [N], multi-source [N, M, ...], and figure citations [Figure from source N]
         citations = []
         seen_chunk_ids = set()
         old_to_new_num = {}
 
+        # Helper to expand comma/semicolon separated items and ranges like 1-3
+        def extract_nums_from_expr(expr: str) -> list[str]:
+            raw_items = [n.strip() for n in re.split(r'[,;]\s*', expr) if n.strip()]
+            nums = []
+            for item in raw_items:
+                if '-' in item:
+                    parts = [p.strip() for p in item.split('-') if p.strip()]
+                    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+                        start, end = int(parts[0]), int(parts[1])
+                        if 0 < start <= end <= len(retrieved_chunks) and (end - start) <= 25:
+                            nums.extend([str(i) for i in range(start, end + 1)])
+                        else:
+                            nums.append(item)
+                    else:
+                        nums.append(item)
+                else:
+                    nums.append(item)
+            return nums
+
         # Collect all referenced source numbers in order of appearance
-        ref_matches = re.finditer(r'\[(?:Figure(?:\s*\d+)?\s*from\s*(?:source\s*)?)?(\d+)\]', answer, re.IGNORECASE)
+        ref_matches = re.finditer(
+            r'\[(?:Figure(?:\s*\d+)?\s*from\s*(?:source\s*)?(\d+)|(\d+(?:\s*-\s*\d+)?(?:\s*[,;]\s*\d+(?:\s*-\s*\d+)?)*))\]',
+            answer,
+            re.IGNORECASE
+        )
         for m in ref_matches:
-            num_str = m.group(1)
-            idx = int(num_str) - 1
-            if 0 <= idx < len(retrieved_chunks):
-                chunk = retrieved_chunks[idx]
-                chunk_id = chunk["id"]
-                if chunk_id not in seen_chunk_ids:
-                    seen_chunk_ids.add(chunk_id)
-                    new_idx = len(citations) + 1
-                    old_to_new_num[num_str] = str(new_idx)
-                    
-                    # Extract image_url if this is an image chunk or has image_path
-                    image_url = chunk.get("image_url")
-                    if not image_url and chunk.get("image_path"):
-                        image_url = f"/api/images/{os.path.basename(chunk['image_path'])}"
+            fig_source = m.group(1)
+            num_expr = m.group(2)
+            if fig_source:
+                nums = [fig_source]
+            elif num_expr:
+                nums = extract_nums_from_expr(num_expr)
+            else:
+                continue
+
+            for num_str in nums:
+                if not num_str.isdigit():
+                    continue
+                idx = int(num_str) - 1
+                if 0 <= idx < len(retrieved_chunks):
+                    chunk = retrieved_chunks[idx]
+                    chunk_id = chunk["id"]
+                    if chunk_id not in seen_chunk_ids:
+                        seen_chunk_ids.add(chunk_id)
+                        new_idx = len(citations) + 1
+                        old_to_new_num[num_str] = str(new_idx)
                         
-                    citations.append({
-                        "chunk_id": chunk_id,
-                        "document_id": chunk["document_id"],
-                        "document_title": chunk.get("document_title"),
-                        "filename": chunk.get("filename"),
-                        "page_number": chunk["page_number"],
-                        "section_title": chunk.get("section_title"),
-                        "excerpt": (chunk.get("content_text") or chunk.get("image_caption") or "")[:200],
-                        "relevance_score": chunk.get("relevance_score", 5.0),
-                        "image_url": image_url
-                    })
-                elif num_str not in old_to_new_num:
-                    existing_new_idx = next((i + 1 for i, c in enumerate(citations) if c["chunk_id"] == chunk_id), 1)
-                    old_to_new_num[num_str] = str(existing_new_idx)
+                        # Extract image_url if this is an image chunk or has image_path
+                        image_url = chunk.get("image_url")
+                        if not image_url and chunk.get("image_path"):
+                            image_url = f"/api/images/{os.path.basename(chunk['image_path'])}"
+                            
+                        citations.append({
+                            "chunk_id": chunk_id,
+                            "document_id": chunk["document_id"],
+                            "document_title": chunk.get("document_title"),
+                            "filename": chunk.get("filename"),
+                            "page_number": chunk["page_number"],
+                            "section_title": chunk.get("section_title"),
+                            "excerpt": (chunk.get("content_text") or chunk.get("image_caption") or "")[:200],
+                            "relevance_score": chunk.get("relevance_score", 5.0),
+                            "image_url": image_url
+                        })
+                    elif num_str not in old_to_new_num:
+                        existing_new_idx = next((i + 1 for i, c in enumerate(citations) if c["chunk_id"] == chunk_id), 1)
+                        old_to_new_num[num_str] = str(existing_new_idx)
 
         # 4. Attach page figures to citations if on a page with an image
         figure_refs = []
@@ -137,7 +171,7 @@ async def generator_node(state: AgentState) -> dict:
                         })
 
         # Also capture any explicit [Figure ... from source N] that points to an image
-        figure_matches = re.finditer(r'\[Figure(?:\\s*(\d+))?\\s*from\\s*(?:source\\s*)?(\\d+)\]', answer, re.IGNORECASE)
+        figure_matches = re.finditer(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', answer, re.IGNORECASE)
         for m in figure_matches:
             fig_label_num = m.group(1)
             num_str = m.group(2)
@@ -172,17 +206,31 @@ async def generator_node(state: AgentState) -> dict:
 
         answer = re.sub(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', replace_fig_citations, answer, flags=re.IGNORECASE)
 
-        # Next renumber standard inline citations [N]
+        # Next renumber standard inline citations [N] or [N, M, ...] or [N-M]
         def replace_inline_citations(match):
-            old_num = match.group(1)
-            if old_num in old_to_new_num:
-                return f"[{old_to_new_num[old_num]}]"
-            num = int(old_num)
-            if num <= 0 or num > len(retrieved_chunks):
-                return "[citation not found]"
-            return match.group(0)
+            num_expr = match.group(1)
+            nums = extract_nums_from_expr(num_expr)
+            new_badges = []
+            seen_in_bracket = set()
+            for n in nums:
+                if not n.isdigit():
+                    continue
+                if n in old_to_new_num:
+                    new_num = old_to_new_num[n]
+                    if new_num not in seen_in_bracket:
+                        seen_in_bracket.add(new_num)
+                        new_badges.append(f"[{new_num}]")
+                else:
+                    num = int(n)
+                    if num <= 0 or num > len(retrieved_chunks):
+                        new_badges.append("[citation not found]")
+                    else:
+                        if n not in seen_in_bracket:
+                            seen_in_bracket.add(n)
+                            new_badges.append(f"[{n}]")
+            return "".join(new_badges) if new_badges else match.group(0)
 
-        answer = re.sub(r'(?<!Figure\s)(?<!from source )\[(\d+)\]', replace_inline_citations, answer, flags=re.IGNORECASE)
+        answer = re.sub(r'(?<!Figure\s)(?<!from source )\[(\d+(?:\s*-\s*\d+)?(?:\s*[,;]\s*\d+(?:\s*-\s*\d+)?)*)\](?!\()', replace_inline_citations, answer, flags=re.IGNORECASE)
 
         
         # 6. Calculate confidence_score
