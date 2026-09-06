@@ -104,37 +104,62 @@ async def evidence_grader_node(state: AgentState) -> dict:
         content = response.content.strip()
         parsed_scores = extract_json(content)
         
-        # Build score lookup map with flexible key matching
+        # Unwrap dict-wrapped responses like {"results": [...]} or {"grades": [...]}
+        if isinstance(parsed_scores, dict):
+            for key in ["results", "grades", "scores", "chunks", "data"]:
+                if key in parsed_scores and isinstance(parsed_scores[key], list):
+                    parsed_scores = parsed_scores[key]
+                    break
+            else:
+                # Dict is a single-item response - wrap in list
+                parsed_scores = [parsed_scores]
+        
+        # Build score lookup map with flexible key matching - fully wrapped in try/except
         scores_map = {}
-        if isinstance(parsed_scores, list):
-            for idx, item in enumerate(parsed_scores):
-                if isinstance(item, dict):
-                    key = None
-                    for k in ["chunk_index", '"chunk_index"', "index", "chunk", "id"]:
-                        if k in item:
-                            key = item[k]
-                            break
-                    if key is None:
-                        key = idx
-                    
-                    score_val = None
-                    for sk in ["score", '"score"', "relevance_score", "relevance"]:
-                        if sk in item:
-                            score_val = item[sk]
-                            break
-                    if score_val is None:
-                        score_val = 3.0
+        try:
+            if isinstance(parsed_scores, list):
+                for idx, item in enumerate(parsed_scores):
                     try:
-                        scores_map[int(key)] = float(score_val)
-                    except Exception:
-                        scores_map[idx] = float(score_val)
-                elif isinstance(item, (int, float)):
-                    scores_map[idx] = float(item)
+                        if isinstance(item, dict):
+                            # Find chunk index key
+                            key = idx  # default to position
+                            for k in ["chunk_index", "index", "chunk", "id"]:
+                                if k in item:
+                                    raw_key = item[k]
+                                    try:
+                                        key = int(raw_key)
+                                    except (ValueError, TypeError):
+                                        key = idx
+                                    break
+                            
+                            # Find score value
+                            score_val = 3.0  # default
+                            for sk in ["score", "relevance_score", "relevance", "rating"]:
+                                if sk in item:
+                                    try:
+                                        score_val = float(item[sk])
+                                    except (ValueError, TypeError):
+                                        score_val = 3.0
+                                    break
+                            
+                            scores_map[key] = score_val
+                        elif isinstance(item, (int, float)):
+                            scores_map[idx] = float(item)
+                        elif isinstance(item, str):
+                            try:
+                                scores_map[idx] = float(item)
+                            except (ValueError, TypeError):
+                                scores_map[idx] = 3.0
+                    except Exception as inner_e:
+                        logging.warning(f"[EvidenceGrader] skipping item at idx={idx}: {inner_e}")
+                        scores_map[idx] = 3.0
+        except Exception as parse_e:
+            logging.warning(f"[EvidenceGrader] Score map build failed: {parse_e}, using defaults")
         
         # Assign scores to chunks_to_grade in order
         evidence_scores = []
         for idx in range(len(chunks_to_grade)):
-            score = scores_map.get(idx, 3.0) # Default to 3 (somewhat relevant) if missing
+            score = scores_map.get(idx, 3.0)  # Default to 3 (somewhat relevant) if missing
             evidence_scores.append(score)
             
         # Update retrieved_chunks list with graded scores
@@ -144,7 +169,7 @@ async def evidence_grader_node(state: AgentState) -> dict:
             if idx < len(evidence_scores):
                 chunk_copy["evidence_score"] = evidence_scores[idx]
             else:
-                chunk_copy["evidence_score"] = 1.0 # Default low score for ungraded
+                chunk_copy["evidence_score"] = 1.0  # Default low score for ungraded
             updated_chunks.append(chunk_copy)
             
         # 2. Sufficiency check:
@@ -200,7 +225,7 @@ async def evidence_grader_node(state: AgentState) -> dict:
         step = {
             "step_name": "evidence_grader",
             "input_summary": f"Grading retrieved chunks",
-            "output_summary": f"Failed (Fallback to sufficient): {str(e)}",
+            "output_summary": f"Grading exception ({str(e)}). Applied fallback scores (sufficient: True).",
             "duration_ms": duration_ms,
             "metadata": {"error": str(e)}
         }

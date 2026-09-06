@@ -66,7 +66,9 @@ User Question: {query}
 Retrieved Chunks:
 {chunks_formatted}
 
-Respond with a JSON array of objects: [{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}, ...]"""
+Respond with a JSON array of objects: [{"chunk_index": 0, "score": 5, "reason": "Directly states the learning rate used"}, ...]
+
+Return ONLY a valid JSON array. No explanation, no markdown fences."""
 
 QUERY_REWRITE_PROMPT = """You are a query rewriting agent. The initial search did not find sufficiently relevant results.
 
@@ -125,13 +127,15 @@ For each factual claim in the answer, determine:
 3. If not supported, flag it as "unsupported"
 
 Respond with JSON:
-{{
+{
   "claims": [
-    {{"claim": "The model uses AdamW optimizer", "supported": true, "source_number": 2}},
-    {{"claim": "Accuracy improved by 15%", "supported": false, "source_number": null, "issue": "The source says 12%, not 15%"}}
+    {"claim": "The model uses AdamW optimizer", "supported": true, "source_number": 2},
+    {"claim": "Accuracy improved by 15%", "supported": false, "source_number": null, "issue": "The source says 12%, not 15%"}
   ],
   "overall_supported": true
-}}"""
+}
+
+Return ONLY valid JSON. No explanation, no markdown fences."""
 
 EXPLAIN_FIGURE_PROMPT = """You are a technical research assistant explaining a figure from a research paper.
 
