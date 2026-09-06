@@ -59,8 +59,8 @@ def get_generation_llm() -> Runnable:
     is_nvidia = "nvidia" in (base_url or "").lower()
     if any(k in model_name.lower() for k in ["llama", "mistral", "minimax"]):
         if is_nvidia:
-            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'poolside/laguna-xs-2.1'.", model_name)
-            model_name = "poolside/laguna-xs-2.1"
+            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'google/gemma-4-31b-it'.", model_name)
+            model_name = "google/gemma-4-31b-it"
         else:
             model_name = "gemini-3.6-flash"
     elif "gemini" in model_name.lower() and ("1.5" in model_name or "latest" in model_name or "2.5" in model_name):
@@ -92,20 +92,26 @@ def get_generation_llm() -> Runnable:
 
     fallbacks: list[ChatOpenAI] = []
 
-    # If primary is Laguna, fallback to Nemotron; if primary is Nemotron, fallback to Laguna
+    # If using NVIDIA NIM, build multi-model fallback chain among active models
     if is_nvidia:
-        alt_model = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" if model_name != "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" else "poolside/laguna-xs-2.1"
-        fallbacks.append(
-            _build_chat_openai(
-                model=alt_model,
-                api_key=api_key,
-                base_url=base_url,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                timeout=60.0,
-                max_retries=1,
-            )
-        )
+        nvidia_models = [
+            "google/gemma-4-31b-it",
+            "poolside/laguna-xs-2.1",
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        ]
+        for alt_model in nvidia_models:
+            if alt_model != model_name:
+                fallbacks.append(
+                    _build_chat_openai(
+                        model=alt_model,
+                        api_key=api_key,
+                        base_url=base_url,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        timeout=60.0,
+                        max_retries=1,
+                    )
+                )
 
     # Fallback 2: Google Gemini 3.6 Flash (if configured in settings)
     gemini_key = settings.openai_api_key
