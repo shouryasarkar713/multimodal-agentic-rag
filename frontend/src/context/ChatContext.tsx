@@ -223,9 +223,21 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // Fetch session messages when activeSessionId changes
   useEffect(() => {
     if (activeSessionId) {
+      // Bug 2 Fix: Check if the compare page pre-populated messages in sessionStorage
+      // Inject them immediately for instant render, then fetch from DB to get the canonical state
+      const prefillKey = `prefill_messages_${activeSessionId}`;
+      const prefill = sessionStorage.getItem(prefillKey);
+      if (prefill) {
+        try {
+          const prefilled: Message[] = JSON.parse(prefill);
+          setMessages(prefilled);
+          sessionStorage.removeItem(prefillKey);
+        } catch (_) {}
+      }
       fetchMessages(activeSessionId);
     }
   }, [activeSessionId, fetchMessages]);
+
 
   // Load stored document selection scope when activeSessionId changes
   useEffect(() => {

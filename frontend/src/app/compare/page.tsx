@@ -6,7 +6,7 @@ import { Columns, Loader2, Sparkles, AlertCircle, MessageSquare, ArrowRight } fr
 import { useDocuments } from '../../hooks/useDocuments';
 import { useChatContext } from '../../context/ChatContext';
 import { api } from '../../lib/api';
-import { Citation } from '../../lib/types';
+import { Citation, Message } from '../../lib/types';
 import { ComparisonTable } from '../../components/ComparisonTable';
 
 export default function ComparePage() {
@@ -65,63 +65,87 @@ export default function ComparePage() {
         document_ids: [docAId, docBId],
       });
 
-      // 3. Since the comparison runs inside the multi-hop LangGraph graph path,
-      // let's fetch the trace if we need raw sub-results, or parse the citations & answer.
-      // Fetch detailed execution traces to render sub-queries and sub-results
-      const trace = await api.getTrace(res.trace_id);
-      
-      // Find multi-hop node step in trace
-      const hopStep = trace.steps.find((s) => s.step_name === 'multi_hop_decomposition');
-      if (hopStep && hopStep.metadata) {
-        setSubQueries(hopStep.metadata.sub_queries || []);
-        // Chunks categorized by sub-query
-        const results = hopStep.metadata.sub_queries.map((q: string, idx: number) => {
-          // Flatten chunks from citations matching Paper A or B
-          return {
-            sub_query: q,
-            retrieved_chunks: res.citations.map((c: any) => ({
-              id: c.chunk_id,
-              document_id: c.document_id,
-              page_number: c.page_number,
-              section_title: c.section_title,
-              content_text: c.excerpt,
-              content_markdown: c.excerpt,
-            })),
-          };
-        });
-        setSubResults(results);
-      } else {
-        // Fallback sub-results grouping
-        const mockResults = [
-          {
-            sub_query: `Analysis of ${paperA?.title || paperA?.filename}`,
-            retrieved_chunks: res.citations.filter((c: any) => c.document_id === docAId).map((c: any) => ({
-              id: c.chunk_id,
-              document_id: c.document_id,
-              page_number: c.page_number,
-              section_title: c.section_title,
-              content_text: c.excerpt,
-              content_markdown: c.excerpt,
-            })),
-          },
-          {
-            sub_query: `Analysis of ${paperB?.title || paperB?.filename}`,
-            retrieved_chunks: res.citations.filter((c: any) => c.document_id === docBId).map((c: any) => ({
-              id: c.chunk_id,
-              document_id: c.document_id,
-              page_number: c.page_number,
-              section_title: c.section_title,
-              content_text: c.excerpt,
-              content_markdown: c.excerpt,
-            })),
-          },
-        ];
-        setSubResults(mockResults);
-      }
+      // Bug 3 Fix: Group citations by document_id for per-paper evidence panels
+      const chunksFromA = res.citations
+        .filter((c: any) => c.document_id === docAId)
+        .map((c: any) => ({
+          id: c.chunk_id,
+          document_id: c.document_id,
+          page_number: c.page_number,
+          section_title: c.section_title,
+          content_text: c.excerpt,
+          content_markdown: c.excerpt,
+        }));
+      const chunksFromB = res.citations
+        .filter((c: any) => c.document_id === docBId)
+        .map((c: any) => ({
+          id: c.chunk_id,
+          document_id: c.document_id,
+          page_number: c.page_number,
+          section_title: c.section_title,
+          content_text: c.excerpt,
+          content_markdown: c.excerpt,
+        }));
+
+      // Try to get sub-queries from trace if available
+      let resolvedSubQueries: string[] = [];
+      try {
+        const trace = await api.getTrace(res.trace_id);
+        const hopStep = trace.steps.find((s: any) => s.step_name === 'multi_hop_decomposition');
+        if (hopStep?.metadata?.sub_queries) {
+          resolvedSubQueries = hopStep.metadata.sub_queries;
+        }
+      } catch (_) {}
+
+      setSubQueries(
+        resolvedSubQueries.length > 0
+          ? resolvedSubQueries
+          : [
+              `What methodology does ${paperA?.title || paperA?.filename} use?`,
+              `What methodology does ${paperB?.title || paperB?.filename} use?`,
+            ]
+      );
+
+      // Sub-results keyed by paper — always populated from citation document_id grouping
+      setSubResults([
+        {
+          sub_query: `Evidence from ${paperA?.title || paperA?.filename}`,
+          retrieved_chunks: chunksFromA,
+        },
+        {
+          sub_query: `Evidence from ${paperB?.title || paperB?.filename}`,
+          retrieved_chunks: chunksFromB,
+        },
+      ]);
 
       setComparativeAnswer(res.content);
       setCitations(res.citations);
-      
+
+      // Bug 2 Fix: Immediately inject the assistant response message into sessionStorage
+      // so the chat page can render it instantly on navigation without waiting for a DB fetch
+      const assistantMsg: Message = {
+        id: res.message_id,
+        role: 'assistant',
+        content: res.content,
+        citations: res.citations,
+        figure_refs: res.figure_refs,
+        confidence: res.confidence,
+        trace_id: res.trace_id,
+        created_at: new Date().toISOString(),
+      };
+      const userMsg: Message = {
+        id: Math.random().toString(),
+        role: 'user',
+        content: fullQuery,
+        created_at: new Date().toISOString(),
+      };
+      try {
+        sessionStorage.setItem(
+          `prefill_messages_${createdSessionId}`,
+          JSON.stringify([userMsg, assistantMsg])
+        );
+      } catch (_) {}
+
     } catch (err: any) {
       setError(err.message || 'Comparison failed. Check backend connection.');
     } finally {
@@ -211,7 +235,7 @@ export default function ComparePage() {
 
         {/* Error banner */}
         {error && (
-          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-bold rounded-sm font-tech-mono uppercase tracking-wider mt-2">
+          <div className="flex items-center gap-2 p-3 border border-red-500/20 bg-red-500/5 text-red-400 text-xs font-bold rounded-sm font-tech-mono uppercase tracking-wider">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -247,9 +271,11 @@ export default function ComparePage() {
               </div>
               <button
                 onClick={() => router.push(`/chat?session=${lastSessionId}`)}
-                className="flex items-center gap-1 px-3 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-355 hover:text-primary transition-all duration-150 text-[10px] font-bold font-tech-mono uppercase tracking-wider rounded-sm"
+                className="px-4 py-2 bg-background border border-neutral-border hover:border-primary/50 text-slate-200 hover:text-primary text-xs font-bold font-tech-mono uppercase tracking-wider rounded-sm transition-colors flex items-center gap-1.5"
               >
-                Open in Chat Workspace <ArrowRight className="w-3.5 h-3.5 text-primary" />
+                <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                <ArrowRight className="w-3.5 h-3.5 text-primary" />
+                <span>Continue in Chat</span>
               </button>
             </div>
           )}

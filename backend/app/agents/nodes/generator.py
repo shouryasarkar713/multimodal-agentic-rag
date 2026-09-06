@@ -137,7 +137,7 @@ async def generator_node(state: AgentState) -> dict:
                         })
 
         # Also capture any explicit [Figure ... from source N] that points to an image
-        figure_matches = re.finditer(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', answer, re.IGNORECASE)
+        figure_matches = re.finditer(r'\[Figure(?:\\s*(\d+))?\\s*from\\s*(?:source\\s*)?(\\d+)\]', answer, re.IGNORECASE)
         for m in figure_matches:
             fig_label_num = m.group(1)
             num_str = m.group(2)
@@ -206,6 +206,7 @@ async def generator_node(state: AgentState) -> dict:
             
         # Clamp: minimum 0.65 for any answer that completed the full pipeline, max 1.0
         confidence = max(0.65, min(1.0, confidence))
+
         
         duration_ms = int((time.time() - start_time) * 1000)
         logging.info(f"[Generator] Generated answer in {duration_ms}ms ({len(answer)} chars, {len(citations)} citations, {len(figure_refs)} figures)")
