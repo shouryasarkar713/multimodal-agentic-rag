@@ -2,7 +2,7 @@
 
 A state-of-the-art engineering-locked RAG platform for analyzing complex technical research papers. Leveraging LangGraph, FastAPI, pgvector, and Next.js, this assistant processes text, extracts and parses figures, decomposes multi-paper comparative queries, and provides verifiable, citation-backed answers with visual context and complete execution tracing.
 
-**Live Demo**: [http://research-gpt.duckdns.org/](http://research-gpt.duckdns.org/)
+**Live Demo**: [https://researchgpt.me/](https://researchgpt.me/)
 
 ---
 
@@ -91,8 +91,8 @@ To host the application persistently in the cloud:
 #### 3. Update AWS Firewall (Security Group)
 *   Open inbound TCP ports **80** (HTTP) and **8000** (Backend API) to anywhere (`0.0.0.0/0`) in your EC2 Security Group.
 
-#### 4. Configure a Custom Domain (Optional & Free)
-*   Register a free subdomain (e.g. `your-app.duckdns.org`) on [DuckDNS](https://www.duckdns.org) and set the target IP to your AWS Elastic IP.
+#### 4. Configure a Custom Domain (Cloudflare + SSL)
+* Point your custom domain (e.g. `researchgpt.me`) via DNS `A` records to your server IP, and proxy through Cloudflare for free instant SSL and DDoS protection.
 
 #### 5. Launch & Apply Migrations
 *   Build and launch the containers on the VM:
