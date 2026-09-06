@@ -68,6 +68,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       const next = typeof update === 'function' ? (update as Function)(prev) : update;
       if (typeof window !== 'undefined' && activeSessionId) {
         localStorage.setItem(`session_docs_${activeSessionId}`, JSON.stringify(next));
+        // Persist to backend database
+        api.updateSession(activeSessionId, { document_ids: next }).catch((err) => {
+          console.warn('[ChatContext] Failed to persist session document scope:', err);
+        });
+        // Update local session state in place
+        setSessions((prevSessions) =>
+          prevSessions.map((s) => (s.id === activeSessionId ? { ...s, document_ids: next } : s))
+        );
       }
       return next;
     });
@@ -115,7 +123,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     try {
       logDebug('[DEBUG] createNewSession CALLED with title:', title, 'initialDocIds:', initialDocIds);
       setError(null);
-      const newSession = await api.createSession(title);
+      const newSession = await api.createSession(title, initialDocIds);
       logDebug('[DEBUG] api.createSession returned session:', newSession);
       setSessions((prev) => [newSession, ...prev]);
 
@@ -244,6 +252,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       logDebug('[DEBUG] activeSessionId changed to:', activeSessionId);
       if (activeSessionId) {
+        // 1. Check if the session object in state has document_ids from the database
+        const currentSession = sessions.find((s) => s.id === activeSessionId);
+        if (currentSession && Array.isArray(currentSession.document_ids) && currentSession.document_ids.length > 0) {
+          logDebug('[DEBUG] Restored scope from database session:', currentSession.document_ids);
+          setSelectedDocumentIdsState(currentSession.document_ids);
+          localStorage.setItem(`session_docs_${activeSessionId}`, JSON.stringify(currentSession.document_ids));
+          return;
+        }
+
+        // 2. Fallback to localStorage
         const stored = localStorage.getItem(`session_docs_${activeSessionId}`);
         logDebug('[DEBUG] stored value from localStorage:', stored);
         if (stored) {
@@ -264,7 +282,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setSelectedDocumentIdsState([]);
       }
     }
-  }, [activeSessionId]);
+  }, [activeSessionId, sessions]);
 
   // Initial load
   useEffect(() => {

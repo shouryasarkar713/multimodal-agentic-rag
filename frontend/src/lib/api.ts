@@ -76,10 +76,17 @@ export const api = {
   },
 
   // Session Endpoints
-  async createSession(title?: string): Promise<Session> {
+  async createSession(title?: string, document_ids?: string[]): Promise<Session> {
     return apiFetch('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, document_ids }),
+    });
+  },
+
+  async updateSession(id: string, update: { title?: string; document_ids?: string[] }): Promise<Session> {
+    return apiFetch(`/sessions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update),
     });
   },
 

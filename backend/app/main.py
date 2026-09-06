@@ -30,3 +30,15 @@ app.include_router(api_router, prefix="/api")
 @app.get("/api/health", tags=["health"])
 async def health_check():
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+async def startup_db_init():
+    try:
+        from app.dependencies import engine
+        from sqlalchemy import text
+        async with engine.begin() as conn:
+            await conn.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS document_ids JSONB DEFAULT '[]'::jsonb;"))
+            logging.info("Schema check completed: sessions.document_ids column verified.")
+    except Exception as e:
+        logging.warning("Could not auto-apply sessions.document_ids schema check: %s", e)

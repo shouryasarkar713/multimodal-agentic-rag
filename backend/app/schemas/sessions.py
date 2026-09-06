@@ -5,11 +5,17 @@ import uuid
 
 class SessionCreate(BaseModel):
     title: Optional[str] = None
+    document_ids: Optional[List[str]] = None
+
+class SessionUpdate(BaseModel):
+    title: Optional[str] = None
+    document_ids: Optional[List[str]] = None
 
 class SessionResponse(BaseModel):
     id: uuid.UUID
     title: str
     message_count: Optional[int] = 0
+    document_ids: Optional[List[str]] = []
     created_at: datetime
     updated_at: datetime
 

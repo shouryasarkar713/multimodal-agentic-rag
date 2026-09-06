@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Send, Loader2, Sparkles, Filter, CheckSquare, Square, FileText } from 'lucide-react';
 import { useChatContext } from '../../context/ChatContext';
 import { useDocuments } from '../../hooks/useDocuments';
 import { ChatMessage } from '../../components/ChatMessage';
 
-export default function ChatPage() {
+function ChatContent() {
   const {
     activeSessionId,
     messages,
@@ -93,7 +93,7 @@ export default function ChatPage() {
             {selectedDocumentIds.length} ACTIVE
           </span>
         </div>
-        
+
         {/* Document Selection List */}
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between font-tech-mono text-[9px] uppercase tracking-wider font-bold border-b border-neutral-border/20 pb-2">
@@ -112,7 +112,7 @@ export default function ChatPage() {
           </div>
 
           {readyDocuments.length === 0 ? (
-            <div className="text-[9px] text-slate-655 font-tech-mono uppercase tracking-wider leading-relaxed py-4">
+            <div className="text-[9px] text-slate-650 font-tech-mono uppercase tracking-wider leading-relaxed py-4">
               NO INDEXED PAPERS IN DATABASE. USE THE UPLOADER ON THE HOME PAGE TO START.
             </div>
           ) : (
@@ -163,12 +163,12 @@ export default function ChatPage() {
               </span>
               <button
                 onClick={() => setMobileScoperOpen(false)}
-                className="text-[9px] font-tech-mono text-slate-455 hover:text-slate-200 border border-neutral-border px-2 py-0.5 rounded-sm"
+                className="text-[9px] font-tech-mono text-slate-450 hover:text-slate-200 border border-neutral-border px-2 py-0.5 rounded-sm"
               >
                 Close
               </button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto flex flex-col gap-3">
               <div className="flex items-center justify-between font-tech-mono text-[9px] uppercase tracking-wider font-bold border-b border-neutral-border/20 pb-2">
                 <button
@@ -270,7 +270,7 @@ export default function ChatPage() {
               {messages.map((msg) => (
                 <ChatMessage key={msg.id} message={msg} />
               ))}
-              
+
               {/* Typing Loader State */}
               {sendingMessage && (
                 <div className="flex gap-4 py-6 px-4 md:px-6 bg-surface/10 border-b border-neutral-border/20 justify-start select-none">
@@ -297,7 +297,7 @@ export default function ChatPage() {
         {/* Suggestion Prompt & Input Area */}
         <div className="p-4 md:p-6 border-t border-neutral-border bg-surface shrink-0 select-none">
           <div className="max-w-4xl mx-auto flex flex-col gap-4">
-            
+
             {/* Inline footnote suggested queries (Option 2B requirement) */}
             {messages.length === 0 && (
               <div className="text-[10px] font-tech-mono text-slate-500 flex flex-wrap gap-x-4 gap-y-1.5 uppercase font-bold tracking-wide border-b border-neutral-border/20 pb-3 mb-1">
@@ -336,5 +336,18 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen bg-background items-center justify-center text-slate-400 font-tech-mono text-xs">
+        <Loader2 className="w-4 h-4 animate-spin text-primary mr-2" />
+        INITIALIZING WORKSPACE...
+      </div>
+    }>
+      <ChatContent />
+    </Suspense>
   );
 }

@@ -15,6 +15,7 @@ export interface Session {
   id: string;
   title: string;
   message_count: number;
+  document_ids?: string[];
   created_at: string;
   updated_at: string;
 }

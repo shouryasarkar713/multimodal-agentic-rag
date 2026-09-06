@@ -1,23 +1,25 @@
 import uuid
 import json
 import logging
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.dependencies import get_db
+from app.dependencies import get_db, verify_api_key
 from app.models.db import Session, Message
 from app.schemas.sessions import (
     SessionCreate,
+    SessionUpdate,
     SessionResponse,
     SessionListResponse,
-    MessageItem,
     MessageListResponse,
+    MessageItem,
     CitationItem
 )
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+# Prefix configured as /sessions to match /api/sessions contract
+router = APIRouter(prefix="/sessions", tags=["sessions"], dependencies=[Depends(verify_api_key)])
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
@@ -25,58 +27,97 @@ async def create_session(
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new chat session."""
-    title = body.title if (body and body.title) else "New Session"
-    session = Session(title=title)
-    db.add(session)
+    title = (body.title if body and body.title else "New Session").strip()
+    if not title:
+        title = "New Session"
+        
+    doc_ids = [str(d) for d in body.document_ids] if (body and body.document_ids) else []
+    new_session = Session(title=title, document_ids=doc_ids)
+    db.add(new_session)
+    await db.commit()
+    await db.refresh(new_session)
+    
+    return SessionResponse(
+        id=new_session.id,
+        title=new_session.title,
+        message_count=0,
+        document_ids=new_session.document_ids or [],
+        created_at=new_session.created_at,
+        updated_at=new_session.updated_at
+    )
+
+@router.get("", response_model=SessionListResponse)
+async def list_sessions(db: AsyncSession = Depends(get_db)):
+    """List all chat sessions ordered by updated_at descending with message counts."""
+    stmt = (
+        select(Session, func.count(Message.id))
+        .outerjoin(Message, Session.id == Message.session_id)
+        .group_by(Session.id)
+        .order_by(Session.updated_at.desc())
+    )
+    result = await db.execute(stmt)
+    sessions_with_counts = result.all()
+    
+    return SessionListResponse(
+        sessions=[
+            SessionResponse(
+                id=s.id,
+                title=s.title,
+                message_count=count,
+                document_ids=s.document_ids or [],
+                created_at=s.created_at,
+                updated_at=s.updated_at
+            ) for s, count in sessions_with_counts
+        ]
+    )
+
+@router.patch("/{session_id}", response_model=SessionResponse)
+async def update_session(
+    session_id: uuid.UUID,
+    body: SessionUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a session's title or document scope."""
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    if body.title is not None:
+        clean_title = body.title.strip()
+        if clean_title:
+            session.title = clean_title
+            
+    if body.document_ids is not None:
+        session.document_ids = [str(d) for d in body.document_ids]
+        
+    session.updated_at = func.now()
     await db.commit()
     await db.refresh(session)
+    
+    # Get message count
+    stmt_count = select(func.count(Message.id)).where(Message.session_id == session.id)
+    res_count = await db.execute(stmt_count)
+    msg_count = res_count.scalar_one_or_none() or 0
     
     return SessionResponse(
         id=session.id,
         title=session.title,
-        message_count=0,
+        message_count=msg_count,
+        document_ids=session.document_ids or [],
         created_at=session.created_at,
         updated_at=session.updated_at
     )
 
-@router.get("", response_model=SessionListResponse, status_code=status.HTTP_200_OK)
-async def list_sessions(
-    db: AsyncSession = Depends(get_db)
-):
-    """List all sessions ordered by updated_at descending with message counts."""
-    # Subquery or count query for messages
-    count_subq = (
-        select(func.count(Message.id))
-        .where(Message.session_id == Session.id)
-        .scalar_subquery()
-    )
-    
-    stmt = (
-        select(Session, count_subq.label("msg_count"))
-        .order_by(Session.updated_at.desc())
-    )
-    
-    result = await db.execute(stmt)
-    rows = result.all()
-    
-    session_responses = []
-    for session, msg_count in rows:
-        session_responses.append(SessionResponse(
-            id=session.id,
-            title=session.title,
-            message_count=msg_count or 0,
-            created_at=session.created_at,
-            updated_at=session.updated_at
-        ))
-        
-    return SessionListResponse(sessions=session_responses)
-
-@router.get("/{session_id}/messages", response_model=MessageListResponse, status_code=status.HTTP_200_OK)
+@router.get("/{session_id}/messages", response_model=MessageListResponse)
 async def get_session_messages(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get all messages for a session in chronological order."""
+    """Retrieve message history for a specific chat session."""
+    # Check if session exists
     session = await db.get(Session, session_id)
     if not session:
         raise HTTPException(
@@ -84,17 +125,13 @@ async def get_session_messages(
             detail="Session not found"
         )
         
-    stmt = (
-        select(Message)
-        .where(Message.session_id == session_id)
-        .order_by(Message.created_at.asc())
-    )
+    stmt = select(Message).where(Message.session_id == session_id).order_by(Message.created_at.asc())
     result = await db.execute(stmt)
     messages = result.scalars().all()
     
     message_items = []
     for m in messages:
-        # Safely extract citations
+        # Cast citations from JSONB to CitationItem
         citations = []
         raw_citations = m.citations
         if raw_citations:
@@ -105,13 +142,14 @@ async def get_session_messages(
                     raw_citations = []
             if isinstance(raw_citations, list):
                 for cit in raw_citations:
+                    if not isinstance(cit, dict):
+                        continue
                     try:
-                        chunk_id = cit.get("chunk_id")
-                        if isinstance(chunk_id, str):
-                            chunk_id = uuid.UUID(chunk_id)
-                        doc_id = cit.get("document_id")
-                        if isinstance(doc_id, str):
-                            doc_id = uuid.UUID(doc_id)
+                        raw_chunk_id = cit.get("chunk_id")
+                        raw_doc_id = cit.get("document_id")
+                        chunk_id = uuid.UUID(str(raw_chunk_id)) if raw_chunk_id else uuid.uuid4()
+                        doc_id = uuid.UUID(str(raw_doc_id)) if raw_doc_id else uuid.uuid4()
+
                         citations.append(CitationItem(
                             chunk_id=chunk_id,
                             document_id=doc_id,

@@ -189,7 +189,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         if (pageMatch) {
           const pageNum = parseInt(pageMatch[1], 10);
           const foundIdx = (message.citations || []).findIndex(c => c.page_number === pageNum);
-          if (foundIdx !== -1) {
+          if (foundIdx !== -1 && message.citations) {
             cardTargetIdx = foundIdx;
             matchedCitation = message.citations[foundIdx];
           } else if (message.citations && message.citations.length > 0) {
