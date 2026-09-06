@@ -96,7 +96,7 @@ Follow these rules strictly:
    - When asked about mechanisms, architectures, or dimensions, explain the core concept, provide all mathematical definitions, scaling factors (e.g., 1/sqrt(d_k)), and equations present in the sources.
    - Explicitly detail all hyperparameters and dimensions (e.g., h = 8 parallel heads, d_k = d_v = 64, d_model = 512, d_k = d_v = d_model / h).
    - Explicitly list the projection matrices and their dimensions (e.g., W^Q, W^K with dimension d_model x d_k; W^V with dimension d_model x d_v; W^O with dimension h*d_v x d_model) in a dedicated bulleted section.
-3. If a source contains or describes a relevant architectural diagram or figure, explicitly cite and reference it inline as [Figure from source N].
+3. If referencing an architectural diagram or figure from the sources, ALWAYS cite it inline using the exact bracket syntax [Figure from source N] or [Figure 1 from source N] (e.g., "[Figure 1 from source 2]"). Never write "Figure 1 (from [2])" as plain text.
 4. Organize your response with clear Markdown headings for subtopics (e.g., "### Scaled Dot-Product Attention Dimensions", "### Multi-Head Attention Dimensions") and bullet lists for dimensions/parameters.
 5. Use proper notation (e.g., $d_k$, $d_v$, $d_model$, $W^Q$) for all mathematical symbols.
 6. Do NOT fabricate information, statistics, or citations not present in the sources.

@@ -65,6 +65,20 @@ async def generator_node(state: AgentState) -> dict:
         response = await llm.ainvoke(prompt)
         answer = clean_thinking(response.content.strip())
         
+        # Pre-normalize figure mentions like "**Figure 2** (from [3])" or "Figure 2 (from [3])" into "[Figure 2 from source 3]"
+        answer = re.sub(
+            r'\*{0,2}Figure\s*(\d+)\*{0,2}\s*\((?:from\s*)?\[(\d+)\]\)',
+            r'[Figure \1 from source \2]',
+            answer,
+            flags=re.IGNORECASE
+        )
+        answer = re.sub(
+            r'\*{0,2}Figure\s*(\d+)\*{0,2}\s*\[(\d+)\]',
+            r'[Figure \1 from source \2]',
+            answer,
+            flags=re.IGNORECASE
+        )
+
         # 3. Parse all inline references: standard [N], multi-source [N, M, ...], and figure citations [Figure from source N]
         citations = []
         seen_chunk_ids = set()
@@ -137,40 +151,10 @@ async def generator_node(state: AgentState) -> dict:
                         existing_new_idx = next((i + 1 for i, c in enumerate(citations) if c["chunk_id"] == chunk_id), 1)
                         old_to_new_num[num_str] = str(existing_new_idx)
 
-        # 4. Attach page figures to citations if on a page with an image
+        # 4. Capture only figures that are EXPLICITLY cited in the answer text (Option 1: Strict & Clean)
         figure_refs = []
         seen_figures = set()
 
-        for c in citations:
-            matched_chunk = next((chunk for chunk in retrieved_chunks if chunk["id"] == c["chunk_id"]), None)
-            if matched_chunk:
-                img_url = matched_chunk.get("image_url")
-                if not img_url and matched_chunk.get("image_path"):
-                    img_url = f"/api/images/{os.path.basename(matched_chunk['image_path'])}"
-                
-                # Check for page image if not directly attached
-                if not img_url:
-                    page_num = matched_chunk.get("page_number")
-                    page_img = next(
-                        (ch for ch in retrieved_chunks if (ch.get("content_type") == "image" or ch.get("image_path")) and ch.get("page_number") == page_num),
-                        None
-                    )
-                    if page_img:
-                        img_url = page_img.get("image_url") or (f"/api/images/{os.path.basename(page_img['image_path'])}" if page_img.get("image_path") else None)
-
-                if img_url:
-                    c["image_url"] = img_url
-                    if c["chunk_id"] not in seen_figures:
-                        seen_figures.add(c["chunk_id"])
-                        figure_refs.append({
-                            "chunk_id": c["chunk_id"],
-                            "document_id": c["document_id"],
-                            "image_path": img_url,
-                            "caption": c.get("section_title") or f"Figure from page {c.get('page_number', 1)}",
-                            "page_number": c.get("page_number", 1)
-                        })
-
-        # Also capture any explicit [Figure ... from source N] that points to an image
         figure_matches = re.finditer(r'\[Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)\]', answer, re.IGNORECASE)
         for m in figure_matches:
             fig_label_num = m.group(1)
@@ -184,8 +168,18 @@ async def generator_node(state: AgentState) -> dict:
                     img_path = chunk.get("image_url")
                     if not img_path and chunk.get("image_path"):
                         img_path = f"/api/images/{os.path.basename(chunk['image_path'])}"
+                    # If the cited chunk doesn't have an image path directly, check for image on the same page
+                    if not img_path:
+                        page_num = chunk.get("page_number")
+                        page_img = next(
+                            (ch for ch in retrieved_chunks if (ch.get("content_type") == "image" or ch.get("image_path")) and ch.get("page_number") == page_num),
+                            None
+                        )
+                        if page_img:
+                            img_path = page_img.get("image_url") or (f"/api/images/{os.path.basename(page_img['image_path'])}" if page_img.get("image_path") else None)
                     if img_path:
-                        cap = chunk.get("image_caption") or chunk.get("section_title") or f"Figure {fig_label_num or ''} from page {chunk.get('page_number')}"
+                        fig_title = f"Figure {fig_label_num}" if fig_label_num else "Figure"
+                        cap = chunk.get("image_caption") or chunk.get("section_title") or f"{fig_title} from page {chunk.get('page_number', 1)}"
                         figure_refs.append({
                             "chunk_id": chunk_id,
                             "document_id": chunk["document_id"],

@@ -36,7 +36,7 @@ const SYMBOL_MAP: Record<string, string> = {
 
 const SUBSCRIPTS: Record<string, string> = {
   '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
-  '5': '₅', '6': '₆', '7': '₇', '8': '', '9': '₉',
+  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
   '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
   'a': 'ₐ', 'e': 'ₑ', 'h': 'ₕ', 'i': 'ᵢ', 'j': 'ⱼ',
   'k': 'ₖ', 'l': 'ₗ', 'm': 'ₘ', 'n': 'ₙ', 'o': 'ₒ',
@@ -124,7 +124,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
   const processTextWithMathAndCitations = (text: string) => {
     // Matches display math ($$...$$), inline math ($...$), citations ([N], [p. N], (p. N)), and figure refs
-    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?:\\\$|[^\$\n])+\$|\[\d+\]|\[p\.?\s*\d+\]|\(p\.?\s*\d+\)|\[citation not found\]|\[Figure from source \d+\])/gi;
+    const tokenRegex = /(\$\$[\s\S]+?\$\$|\$(?:\\\$|[^\$\n])+\$|\[\d+\]|\[p\.?\s*\d+\]|\(p\.?\s*\d+\)|\[citation not found\]|\[Figure(?:\s*\d+)?\s*from\s*(?:source\s*)?\d+\])/gi;
     const parts = text.split(tokenRegex);
     if (parts.length === 1) {
       // Clean any isolated latex commands in plain text
@@ -159,14 +159,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
           );
         }
         // Check if figure reference like [Figure from source 1] or [Figure 2 from source 1] (case-insensitive)
-        const figMatch = part.match(/[\[\(]Figure(?:\s*\d+)?\s*from\s*(?:source\s*)?(\d+)[\]\)]/i);
+        const figMatch = part.match(/[\[\(]Figure(?:\s*(\d+))?\s*from\s*(?:source\s*)?(\d+)[\]\)]/i);
         if (figMatch) {
-          const figSourceNum = parseInt(figMatch[1], 10);
+          const figSourceNum = parseInt(figMatch[2] || figMatch[1], 10);
           return (
             <span
               key={idx}
               onClick={() => {
-                const figEl = document.getElementById('figure-card-0') || document.getElementById(`citation-card-${figSourceNum - 1}`) || document.getElementById('citation-card-0');
+                const figEl = document.getElementById(`figure-card-${figSourceNum - 1}`) || document.getElementById('figure-card-0') || document.getElementById(`citation-card-${figSourceNum - 1}`) || document.getElementById('citation-card-0');
                 if (figEl) {
                   figEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                   figEl.classList.add('ring-1', 'ring-primary');
