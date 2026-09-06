@@ -59,8 +59,8 @@ def get_generation_llm() -> Runnable:
     is_nvidia = "nvidia" in (base_url or "").lower()
     if any(k in model_name.lower() for k in ["llama", "mistral", "minimax"]):
         if is_nvidia:
-            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'google/gemma-4-31b-it'.", model_name)
-            model_name = "google/gemma-4-31b-it"
+            logging.info("Model '%s' is EOL or deprecating on NVIDIA NIM. Mapping to active model 'poolside/laguna-xs-2.1'.", model_name)
+            model_name = "poolside/laguna-xs-2.1"
         else:
             model_name = "gemini-3.6-flash"
     elif "gemini" in model_name.lower() and ("1.5" in model_name or "latest" in model_name or "2.5" in model_name):
@@ -95,8 +95,8 @@ def get_generation_llm() -> Runnable:
     # If using NVIDIA NIM, build multi-model fallback chain among active models
     if is_nvidia:
         nvidia_models = [
-            "google/gemma-4-31b-it",
             "poolside/laguna-xs-2.1",
+            "google/gemma-4-31b-it",
             "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         ]
         for alt_model in nvidia_models:
